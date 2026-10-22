@@ -1,8 +1,16 @@
 // Loads the mockup's sample data for development. The mockup counts days from its own "today";
 // here they count from the real today, so the sample stays useful whenever it's run.
-// Wipes every table first.
+// Wipes every table first, so it refuses to run over real data without --force.
 import { db, schema } from '../src/lib/db.ts';
 import { addDays, fromSast, startOfSastDay } from '../src/lib/dates.ts';
+
+// Seeding wipes every table, real fetched tenders and bids included, so it needs --force once
+// there's real data.
+const real = await db.select({ ocid: schema.tenders.ocid }).from(schema.tenders);
+if (real.some((t) => !t.ocid.startsWith('seed-')) && !process.argv.includes('--force')) {
+  console.error('The database has real tenders. Seeding would wipe them, your bids and your vault. Run with --force to do it anyway.');
+  process.exit(1);
+}
 
 const now = new Date();
 const today = startOfSastDay(now);

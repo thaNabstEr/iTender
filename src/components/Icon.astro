@@ -1,0 +1,27 @@
+---
+// Renders a Hugeicons free icon on the server. The icon data uses React prop names
+// (strokeWidth, strokeLinecap), so they're converted to SVG attributes here.
+type IconSvgObject = readonly (readonly [string, { readonly [key: string]: string | number }])[];
+
+interface Props {
+  icon: IconSvgObject;
+  size?: number;
+}
+const { icon, size = 20 } = Astro.props;
+
+const attrs = (a: { readonly [key: string]: string | number }) =>
+  Object.fromEntries(
+    Object.entries(a)
+      .filter(([k]) => k !== 'key')
+      .map(([k, v]) => [k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), v]),
+  );
+---
+<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" class="icon">
+  {icon.map(([Tag, a]) => <Tag {...attrs(a)} />)}
+</svg>
+
+<style>
+  .icon {
+    flex-shrink: 0;
+  }
+</style>

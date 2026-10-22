@@ -3,16 +3,16 @@
 
 /* Tokens and base */
 :root {
-  --page: #FFFFFF;
-  --ink: #0E0F0C;
-  --muted: #5D6159;
-  --line: #E8EBE6;
-  --control: #C9CEC5;
-  --soft: #F5F7F3;
+  --page: #ffffff;
+  --ink: #0e0f0c;
+  --muted: #5d6159;
+  --line: #e8ebe6;
+  --control: #c9cec5;
+  --soft: #f5f7f3;
   --forest: #163300;
-  --lime: #9FE870;
-  --mark: #CDFFAD;
-  --range: #E2F6D5;
+  --lime: #9fe870;
+  --mark: #cdffad;
+  --range: #e2f6d5;
   --field: var(--page);
   --on-lime: var(--forest);
   --on-mark: var(--ink);
@@ -26,7 +26,9 @@ html {
   scroll-padding-top: env(safe-area-inset-top, 0px);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: inherit;
 }
 
@@ -34,7 +36,12 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   font-size: 15px;
   line-height: 1.5;
 }
@@ -66,7 +73,7 @@ a:hover {
 }
 
 svg text {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
 }
 
 /* Type */
@@ -84,11 +91,15 @@ h2 {
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  background-color: var(--soft);
+  /* padding: 4px 12px; */
+  text-transform: capitalize;
 }
+
 
 .huge {
   font-size: clamp(52px, 8vw, 92px);
-  line-height: .92;
+  line-height: 0.92;
   font-weight: 900;
   letter-spacing: -0.045em;
   color: var(--forest);
@@ -111,34 +122,39 @@ h2 {
   background: var(--mark);
   color: var(--on-mark);
   padding: 1px 8px;
-  border-radius: 9999px;
+  /* border-radius: 9999px; */
   font-weight: 600;
   white-space: nowrap;
 }
 
 /* Controls */
-button, select, input[type=text], input[type=email], input[type=number] {
+button,
+select,
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="tel"] {
   font-family: inherit;
   font-size: 14px;
   min-height: 44px;
   color: var(--ink);
 }
 
-button {
-  padding: 0 18px;
-  border: 1px solid var(--control);
-  border-radius: 9999px;
-  background: transparent;
-  cursor: pointer;
-}
+/* Buttons. Three looks, set by class on a <button> or on an <a class="btn"> link:
+   - outline (no extra class): forest border, ink text. Used for secondary actions and Cancel.
+   - lime (class="primary"): lime background, forest text. The main action on a screen.
+   - forest (class="dark"): forest background, white text. The main action inside a lime panel.
+   Each look has its own :hover rule below; lime and forest hovers win over the outline one. */
 
+/* Outline: the base every button starts from. */
+button,
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
   padding: 0 20px;
-  border: 1px solid var(--control);
+  border: 1px solid var(--forest);
   border-radius: 9999px;
   text-decoration: none;
   font-size: 14px;
@@ -149,12 +165,16 @@ button {
   white-space: nowrap;
 }
 
+button:hover,
 .btn:hover {
-  color: var(--ink);
-  border-color: var(--ink);
+  background: var(--soft);
+  color: var(--forest);
+  border: none;
 }
 
-.btn.primary, button.primary {
+/* Lime: class="primary" */
+button.primary,
+.btn.primary {
   background: var(--lime);
   color: var(--on-lime);
   border: none;
@@ -163,30 +183,39 @@ button {
   padding: 0 24px;
 }
 
-.btn.dark, button.dark {
+button.primary:hover,
+.btn.primary:hover {
   background: var(--forest);
-  color: var(--lime);
+  color: #ffffff;
+}
+
+/* Forest: class="dark" */
+button.dark,
+.btn.dark {
+  background: var(--forest);
+  color: var(--soft);
   border: none;
   font-weight: 700;
   font-size: 15px;
   padding: 0 24px;
 }
 
+button.dark:hover,
+.btn.dark:hover {
+  background: var(--soft);
+  color: var(--forest);
+}
+
+/* Small: add class="small" to any of the above. */
+button.small,
 .btn.small {
   min-height: 36px;
   padding: 0 14px;
   font-size: 13px;
 }
 
-.btn.primary:hover {
-  color: var(--on-lime);
-}
-
-.btn.dark:hover {
-  color: var(--lime);
-}
-
 button.link {
+  display: inline;
   border: none;
   padding: 0;
   min-height: auto;
@@ -195,18 +224,40 @@ button.link {
   background: none;
 }
 
+button.link:hover {
+  color: var(--soft);
+}
+
 select {
   appearance: none;
   -webkit-appearance: none;
   padding: 0 44px 0 18px;
   border: 1px solid var(--control);
   border-radius: 9999px;
-  background: var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235D6159' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 18px center;
+  background: var(--field)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235D6159' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 18px center;
   min-width: 170px;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
-input[type=text], input[type=email], input[type=number] {
+select:hover {
+  border-color: var(--ink);
+}
+
+select:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="tel"] {
   padding: 0 14px;
   border: 1px solid var(--control);
   border-radius: 12px;
@@ -217,6 +268,40 @@ input[type=text], input[type=email], input[type=number] {
 input[readonly] {
   background: var(--soft);
   border-color: var(--line);
+}
+
+/* Hints in an empty box: lighter than typed text, but still readable (4.5:1 needs --muted). */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+/* Inactive: a field that doesn't apply right now, e.g. the VAT number for a business that isn't VAT-registered. */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--soft);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+input:disabled::placeholder {
+  opacity: 1;
+}
+
+/* A value the form rejected: a forest border and the reason right below it. No red, by design. */
+input[aria-invalid="true"] {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 1px var(--forest);
+}
+
+.field-error {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--forest);
+  line-height: 1.35;
 }
 
 .actions {
@@ -232,8 +317,8 @@ input[readonly] {
   align-items: center;
   gap: 12px 20px;
   flex-wrap: wrap;
-  background: var(--forest);
-  color: #FFFFFF;
+  background: var(--line);
+  color: var(--muted);
   border-radius: 18px;
   padding: 14px 16px 14px 22px;
   margin: 0 0 32px;
@@ -252,7 +337,7 @@ input[readonly] {
 
 .panel.forest {
   background: var(--forest);
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .panel.forest .huge {
@@ -261,14 +346,15 @@ input[readonly] {
 
 .panel .sub {
   color: inherit;
-  opacity: .8;
+  opacity: 0.8;
 }
 
 .panel.lime a:not(.btn) {
   color: var(--forest);
 }
 
-.on-lime .btn:not(.dark) {
+.on-lime .btn:not(.dark),
+.on-lime button:not(.dark) {
   border-color: var(--forest);
   color: var(--forest);
 }
@@ -302,6 +388,7 @@ th {
   text-align: left;
   padding: 10px 16px;
   border-bottom: 1px solid var(--line);
+  text-transform: capitalize;
 }
 
 td {
@@ -310,18 +397,51 @@ td {
   vertical-align: middle;
 }
 
-th:first-child, td:first-child {
+th:first-child,
+td:first-child {
   padding-left: 0;
 }
 
-th:last-child, td:last-child {
+th:last-child,
+td:last-child {
   padding-right: 0;
 }
 
+/* Figures and dates in tables: left-aligned like everything else, with digits that line up. */
 .num {
-  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The "#" column at the start of every table: row numbers, small and grey. */
+.col-number {
+  width: 1%;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The "Actions" column: holds buttons, so it's as narrow as they are. */
+.col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* An action that is urgent (closes within 2 days, result overdue) gets the highlighter colour. */
+.btn.urgent {
+  background: var(--mark);
+  border-color: var(--forest);
+}
+
+/* A button with an icon before its label, e.g. Fetch Now. */
+.btn svg,
+button svg {
+  flex-shrink: 0;
+}
+
+.btn.with-icon,
+button.with-icon {
+  gap: 8px;
 }
 
 .tname {
@@ -329,8 +449,355 @@ th:last-child, td:last-child {
   text-decoration: none;
 }
 
+/* A page title with its main action on the right, e.g. "17 open tenders" and Fetch now. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+
+.title-row h1 {
+  margin: 0;
+}
+
+.title-row form {
+  margin: 0;
+}
+
+/* Layout shared by detail screens */
+.cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+}
+
+.cols > section {
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 12px;
+  background-color: var(--soft);
+  padding: 8px 10px 0px 10px;
+}
+
+.back {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.note {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 640px;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+  font-size: 14px;
+}
+
+.facts > div > div:last-child {
+  font-weight: 600;
+}
+
+/* Checklists: tick or open circle, the name, and a status word */
+.list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.list li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.list .grow {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.total {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--forest);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Forms */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px 20px;
+  margin: 0 0 32px;
+  align-items: end;
+}
+
+.fields label,
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.q {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.q:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.q p {
+  margin: 0;
+  flex: 1 1 360px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 0 0 32px;
+  padding: 20px 24px 24px;
+  background: var(--soft);
+  border-radius: 24px;
+}
+
+/* Wise-style pill dropdowns: white on the soft panel; a filter that's set turns range green. */
+.filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  font-size: 15px;
+  background-color: #ffffff;
+  border-color: var(--line);
+}
+
+.filters select.set {
+  background-color: var(--range);
+  border-color: var(--forest);
+  color: var(--forest);
+  font-weight: 600;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+}
+
+/* A unit inside the input, e.g. "%" */
+.affix {
+  position: relative;
+  display: block;
+}
+
+.affix input {
+  width: 100%;
+  padding-right: 40px;
+  -moz-appearance: textfield;
+}
+
+.affix input::-webkit-inner-spin-button,
+.affix input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.affix > span {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* Radios and checkboxes: white, with a forest dot or tick */
+input[type="radio"],
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  background: #ffffff;
+  border: 1.5px solid var(--control);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  border-radius: 6px;
+}
+
+input[type="radio"]::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--forest);
+  transform: scale(0);
+  transition: transform 0.12s ease;
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background: var(--forest);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0);
+  transition: transform 0.12s ease;
+}
+
+input[type="radio"]:checked,
+input[type="checkbox"]:checked {
+  border-color: var(--forest);
+}
+
+input[type="radio"]:checked::before,
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="radio"]:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
+/* Yes / No: options side by side on a soft track, the chosen one highlighted in white */
+.yn {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--soft);
+  border-radius: 9999px;
+}
+
+.yn label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 9999px;
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.yn label:has(input:checked) {
+  background: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(14, 15, 12, 0.12);
+}
+
+/* Toggles: a whole row is the label, the switch sits on the right */
+.toggle {
+  cursor: pointer;
+}
+
+.toggle > span {
+  flex: 1 1 360px;
+}
+
+input.switch {
+  width: 46px;
+  height: 28px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--control);
+  position: relative;
+  display: block;
+  transition: background 0.15s ease;
+}
+
+input.switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  clip-path: none;
+  transform: none;
+  box-shadow: 0 1px 3px rgba(14, 15, 12, 0.25);
+  transition: transform 0.15s ease;
+}
+
+input.switch:checked {
+  background: var(--forest);
+}
+
+input.switch:checked::before {
+  transform: translateX(18px);
+}
+
+input[type="date"],
+input[type="datetime-local"],
+input[type="file"],
+textarea {
+  font: inherit;
+  color: var(--ink);
+}
+
+input[type="date"],
+input[type="datetime-local"],
+textarea {
+  border: 1px solid var(--control);
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-height: 44px;
+  background: var(--field);
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(*), ::view-transition-new(*), ::view-transition-group(*) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
     animation: none !important;
   }
 }

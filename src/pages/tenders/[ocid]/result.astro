@@ -1,0 +1,38 @@
+---
+// Record the result: win or lose, the winning price goes into the price history.
+import { actions, isInputError } from 'astro:actions';
+import Layout from '../../../layouts/Layout.astro';
+
+const ocid = Astro.params.ocid!;
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+const result = Astro.getActionResult(actions.recordResult);
+if (result?.data) return Astro.redirect('/bids');
+const problem = result?.error ? (isInputError(result.error) ? Object.values(result.error.fields).flat().join(' ') : result.error.message) : null;
+
+const desk = await Astro.locals.desk();
+const t = desk.tenders.find((x) => x.ocid === ocid);
+if (!t?.bid) return Astro.redirect(base);
+const b = t.bid;
+const current = b.result ?? 'lost';
+---
+<Layout title="Record the result">
+  <a href={base} class="back">{t.title ?? t.reference}</a>
+  <h1 style="margin-top:12px">Record the result</h1>
+  <p class="lede" style="margin-bottom:32px">Win or lose, the winning price goes into your price history.</p>
+  {problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+  <form method="POST" action={actions.recordResult}>
+    <input type="hidden" name="ocid" value={ocid} />
+    <div style="margin:0 0 24px">
+      <div class="q"><p>Did you win?</p><div class="yn">
+        <label><input type="radio" name="result" value="won" checked={current === 'won'} /> Won</label>
+        <label><input type="radio" name="result" value="lost" checked={current === 'lost'} /> Lost</label>
+        <label><input type="radio" name="result" value="cancelled" checked={current === 'cancelled'} /> Cancelled</label>
+      </div></div>
+    </div>
+    <div class="fields">
+      <label>Winning Company, if You Lost<input type="text" name="winnerName" value={b.winnerName ?? ''} placeholder="Name from the award notice" /></label>
+      <label>Winning Price in Rands<input type="number" name="winningPrice" min="0" step="0.01" value={b.winningPriceCents ? b.winningPriceCents / 100 : ''} placeholder="Your price, if you won" /></label>
+    </div>
+    <div class="actions"><button type="submit" class="primary">Save Result</button><a class="btn" href={base}>Cancel</a></div>
+  </form>
+</Layout>

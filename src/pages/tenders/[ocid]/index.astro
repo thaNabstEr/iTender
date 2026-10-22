@@ -1,0 +1,302 @@
+---
+// Tender detail: can I submit this, and what's missing?
+import { actions } from 'astro:actions';
+import { and, eq, isNull } from 'drizzle-orm';
+import Layout from '../../../layouts/Layout.astro';
+import Closes from '../../../components/Closes.astro';
+import Dash from '../../../components/Dash.astro';
+import Tick from '../../../components/Tick.astro';
+import PriceBand from '../../../components/islands/PriceBand.svelte';
+import { db, schema } from '../../../lib/db.ts';
+import { changeText, shortDoc, TYPE_LABEL, WORK_PLURAL, type BidDocument, type DeskTender } from '../../../lib/desk.ts';
+import { fmtDay, fmtDayAt, fmtWhen } from '../../../lib/dates.ts';
+import { rand } from '../../../lib/money.ts';
+import { pricePoints, suggestedRange } from '../../../lib/prices.ts';
+import { FUNCTIONALITY_SUGGESTIONS } from '../../../lib/checklist.ts';
+import { readableText } from '../../../lib/classify.ts';
+
+const ocid = Astro.params.ocid!;
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+
+// Form posts land here; once one has worked, reload the page so a refresh doesn't repeat it.
+const posted = [actions.startBid, actions.addChecklistItem, actions.removeChecklistItem, actions.markUndone].map((a) => Astro.getActionResult(a));
+if (posted.some((r) => r?.data)) return Astro.redirect(base);
+if (Astro.getActionResult(actions.dismissTender)?.data) return Astro.redirect('/tenders');
+const error = posted.find((r) => r?.error)?.error?.message ?? null;
+
+// Opening a tender marks it seen, and its changes too. What was unseen is still shown this once.
+const [row] = await db.select({ openedAt: schema.tenders.openedAt }).from(schema.tenders).where(eq(schema.tenders.ocid, ocid));
+if (!row) return Astro.rewrite('/404');
+const unseen = new Set(
+  (await db.select({ id: schema.tenderChanges.id }).from(schema.tenderChanges).where(and(eq(schema.tenderChanges.ocid, ocid), isNull(schema.tenderChanges.seenAt)))).map((c) => c.id),
+);
+if (!row.openedAt) await db.update(schema.tenders).set({ openedAt: new Date() }).where(eq(schema.tenders.ocid, ocid));
+if (unseen.size) await db.update(schema.tenderChanges).set({ seenAt: new Date() }).where(and(eq(schema.tenderChanges.ocid, ocid), isNull(schema.tenderChanges.seenAt)));
+
+const desk = await Astro.locals.desk();
+const found = desk.tenders.find((x) => x.ocid === ocid);
+// A tender that isn't relevant and has no bid isn't in the desk; show it all the same.
+const t: DeskTender = found ?? await (async () => {
+  const [r] = await db.select().from(schema.tenders).where(eq(schema.tenders.ocid, ocid));
+  const documents = await db.select().from(schema.tenderDocuments).where(eq(schema.tenderDocuments.ocid, ocid));
+  return { ...r, bid: null, changes: [], criteria: [], goals: [], documents };
+})();
+
+const stage = desk.stage(t);
+const docs = t.bid?.docs ?? [];
+const missing = desk.missingDocs(t);
+const ready = docs.length - missing.length;
+const first = missing[0];
+const vaultHref = (d: BidDocument) => {
+  const v = desk.vaultDoc(d.vaultKind);
+  return v ? `/vault/${v.id}` : `/vault/new?kind=${encodeURIComponent(d.vaultKind ?? '')}&name=${encodeURIComponent(d.name)}`;
+};
+const docHref = (d: BidDocument) => (d.kind === 'vault' ? vaultHref(d) : `${base}/doc/${d.id}`);
+const firstAction = first
+  ? first.kind === 'vault' ? `Fix ${shortDoc(first.name)} in the Vault` : `${first.kind === 'upload' ? 'Upload' : first.formType === 'pricing' ? 'Price' : 'Fill'} ${shortDoc(first.name)}`
+  : null;
+
+const points = pricePoints(desk.registers, t.workType);
+const range = suggestedRange(points);
+const mine = desk.pricingTotal(t);
+const where = [t.entity, t.province].filter(Boolean).join(', ');
+const backTo = stage ? { href: '/bids', label: 'My bids' } : { href: '/tenders', label: 'Tenders' };
+const filled = !!(t.submitMethod || t.briefingAt || t.funcThreshold !== null);
+const STAGE_WORD = { preparing: 'Preparing', submitted: 'Submitted', awaiting: 'Awaiting result', won: 'Won', lost: 'Lost', cancelled: 'Cancelled' };
+const groups = [['compliance', 'Compliance documents'], ['functionality', 'Functionality evidence']] as const;
+const evidenceOk = (evidence: string | null) =>
+  evidence === 'upload' ? docs.some((d) => d.kind === 'upload' && d.done) : !!desk.vaultDoc(evidence)?.filePath;
+---
+<Layout title={t.title ?? t.reference ?? 'Tender'}>
+  <a href={backTo.href} class="back">{backTo.label}</a>
+  <h1 style="margin-top:12px">{t.title ?? t.reference}</h1>
+  <p class="sub" style="font-size:15px;margin:0 0 20px">{where || <Dash />}. Reference {t.reference ?? <Dash />}</p>
+  {error && <p class="banner" role="alert" style="display:block">{error}</p>}
+
+  <div class="facts" style="margin-bottom:24px">
+    <div><div class="sub">Closes</div><div><Closes desk={desk} t={t} /></div></div>
+    <div><div class="sub">Briefing</div><div>
+      {t.briefingAt
+        ? <>{t.briefingCompulsory && <span class="mark">Compulsory</span>} {fmtDayAt(t.briefingAt)}{t.briefingWhere && `, ${t.briefingWhere}`}</>
+        : filled ? 'None' : <Dash />}
+    </div></div>
+    <div><div class="sub">Type</div><div>{t.tenderType ? TYPE_LABEL[t.tenderType] : <Dash />}</div></div>
+    <div><div class="sub">Submit by</div><div>{t.submitMethod ?? <Dash />}</div></div>
+    <div><div class="sub">Tender documents</div><div><a href="#documents">{t.documents.length} {t.documents.length === 1 ? 'file' : 'files'} on eTenders</a></div></div>
+  </div>
+
+  {t.cancelled && <p style="margin:0 0 16px"><span class="mark">Cancelled</span> eTenders lists this tender as cancelled.</p>}
+  {t.changes.map((c) => (
+    <p style="margin:0 0 12px">
+      <strong>Changed {fmtDay(c.detectedAt)}:</strong> {unseen.has(c.id) ? <span class="mark">{changeText(c)}</span> : changeText(c)}.
+      {c.source && <span class="sub"> {c.source}</span>}
+    </p>
+  ))}
+
+  {desk.isOpen(t) && t.closesAt ? (
+    <div class="actions" style="margin:4px 0 32px"><a class="btn small" href={`${base}/calendar.ics`} data-astro-reload>Add {t.briefingAt && t.briefingAt > desk.now ? 'Closing and Briefing' : 'Closing Date'} to Calendar</a></div>
+  ) : <div style="margin:0 0 32px"></div>}
+
+  {!stage && (
+    <div class="panel lime on-lime">
+      <p class="huge" style="font-size:clamp(40px,6vw,64px)">Not bidding yet</p>
+      <p style="margin:0 0 20px">
+        Start a bid to build the checklist and fill the forms from your profile.
+        {t.funcThreshold !== null && ` You’d need ${t.funcThreshold} of 100 functionality points.`}
+        {desk.isOpen(t) ? '' : ' It has closed, so this is for the record only.'}
+      </p>
+      <div class="actions">
+        <form method="POST" action={actions.startBid}><input type="hidden" name="ocid" value={ocid} /><button type="submit" class="dark">Start Bid</button></form>
+        {t.relevant && <form method="POST" action={actions.dismissTender}><input type="hidden" name="ocid" value={ocid} /><button type="submit">Not for Us</button></form>}
+      </div>
+    </div>
+  )}
+
+  {stage === 'preparing' && (
+    <div class="panel lime on-lime">
+      <p class="huge" style="font-size:clamp(40px,6vw,64px)">{ready} of {docs.length} ready</p>
+      <p style="margin:0 0 20px">
+        {!docs.length ? 'The checklist is empty. Add what the tender document asks for.'
+          : missing.length ? `${missing.length === 1 ? 'One document' : `${missing.length} documents`} to go before you can print.`
+          : 'Everything’s ready. Print it, sign it and hand it in.'}
+      </p>
+      <div class="actions">
+        {first && <a class="btn dark" href={docHref(first)}>{firstAction}</a>}
+        {first && <a class="btn" href={`${base}/pack`}>See the Pack</a>}
+        {!missing.length && docs.length > 0 && <a class="btn dark" href={`${base}/pack`}>Build Bid Pack</a>}
+        {!missing.length && docs.length > 0 && <a class="btn" href={`${base}/submit`}>Mark as Submitted</a>}
+      </div>
+    </div>
+  )}
+
+  {stage && stage !== 'preparing' && (
+    <div class="panel lime on-lime">
+      <p class="huge" style="font-size:clamp(40px,6vw,64px)">{STAGE_WORD[stage]}</p>
+      <p style="margin:0 0 20px">
+        {stage === 'won' || stage === 'lost'
+          ? <>You bid {desk.bidPrice(t) ? rand(desk.bidPrice(t)!) : 'an unrecorded price'}.{stage === 'lost' && t.bid!.winnerName && ` ${t.bid!.winnerName} won${t.bid!.winningPriceCents ? ` at ${rand(t.bid!.winningPriceCents)}` : ''}.`}</>
+          : stage === 'cancelled' ? 'The tender was cancelled.'
+          : <>Sent {t.bid!.submittedAt ? fmtDay(t.bid!.submittedAt) : <Dash />}{t.bid!.submitMethod && ` by ${t.bid!.submitMethod.toLowerCase()}`}{desk.bidPrice(t) && `, for ${rand(desk.bidPrice(t)!)}`}. {stage === 'submitted' ? `Closes ${t.closesAt ? fmtDay(t.closesAt) : 'on a date not given'}.` : `Result expected around ${desk.resultExpected(t) ? fmtDay(desk.resultExpected(t)!) : 'two weeks after closing'}.`}</>}
+      </p>
+      <div class="actions">
+        {(stage === 'awaiting' || stage === 'submitted') && <a class={`btn ${stage === 'awaiting' ? 'dark' : ''}`} href={`${base}/result`}>Record the result</a>}
+        {(stage === 'won' || stage === 'lost') && <a class="btn" href={`${base}/result`}>Change the Result</a>}
+      </div>
+    </div>
+  )}
+
+  {t.bid && (
+    <div class="cols section">
+      <section>
+        <p class="note" style="margin:0 0 20px">A starting checklist of the forms most tenders ask for. Check it against the tender document and add or remove items to match.</p>
+        {groups.map(([g, title]) => {
+          const list = docs.filter((d) => d.group === g);
+          return (
+            <>
+              <h2 style="font-size:18px">{title}</h2>
+              {list.length ? (
+                <ul class="list">
+                  {list.map((d) => {
+                    const s = desk.docState(t, d);
+                    return (
+                      <li>
+                        <Tick ok={s.ok} />
+                        <a class="grow" href={docHref(d)} style={`text-decoration:none;${s.ok ? '' : 'font-weight:600'}`}>{d.name}</a>
+                        <span class="sub">{s.ok ? s.label : <span class="mark">{s.label}</span>}</span>
+                        {stage === 'preparing' && (
+                          <form method="POST" action={actions.removeChecklistItem} style="display:contents">
+                            <input type="hidden" name="id" value={d.id} /><input type="hidden" name="ocid" value={ocid} />
+                            <button type="submit" class="x" aria-label={`Remove ${d.name}`} title="Remove">×</button>
+                          </form>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : <p class="sub" style="margin:0 0 24px">{g === 'functionality' ? 'Nothing yet. Add the evidence the scoring asks for.' : 'Nothing yet.'}</p>}
+            </>
+          );
+        })}
+        {stage === 'preparing' && (
+          <details class="add">
+            <summary>Add a Document</summary>
+            <form method="POST" action={actions.addChecklistItem} class="fields" style="margin-top:16px">
+              <input type="hidden" name="ocid" value={ocid} />
+              <label>Name<input type="text" name="name" required list="suggest" placeholder="e.g. Company profile" /></label>
+              <datalist id="suggest">{FUNCTIONALITY_SUGGESTIONS.map((s) => <option value={s.name} />)}</datalist>
+              <label>Part of<select name="group" style="width:100%"><option value="compliance">Compliance documents</option><option value="functionality">Functionality evidence</option></select></label>
+              <label>Where It Comes From
+                <select name="kind" style="width:100%">
+                  <option value="upload">Your own upload</option>
+                  <option value="vault">The vault</option>
+                  <option value="form">A form to fill and sign</option>
+                </select>
+              </label>
+              <label>Vault Document, if from the Vault
+                <select name="vaultKind" style="width:100%">
+                  <option value="">Not from the vault</option>
+                  {desk.vault.map((v) => <option value={v.kind}>{v.name}</option>)}
+                </select>
+              </label>
+              <div class="actions"><button type="submit" class="primary">Add to the Checklist</button></div>
+            </form>
+          </details>
+        )}
+      </section>
+      <section>
+        <div class="section">
+          <h2>How it’s scored</h2>
+          {t.funcThreshold !== null ? (
+            <>
+              <p style="margin:0 0 6px">Functionality comes first. You need <strong>{t.funcThreshold} of 100</strong> to stay in, then price and specific goals decide.</p>
+              <p class="note" style="margin:0 0 16px">As you entered it from the tender document. The panel does the scoring; this checks you have evidence for each part.</p>
+              {t.criteria.length > 0 && (
+                <ul class="list">
+                  {t.criteria.map((c) => (
+                    <li><Tick ok={evidenceOk(c.evidence)} /><span class="grow">{c.name}{c.sourcePage && <span class="sub"> page {c.sourcePage}</span>}</span><span class="sub" style="font-variant-numeric:tabular-nums">{c.points ?? <Dash />} pts</span></li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p style="margin:0">Not entered yet. If the tender scores functionality, add the threshold and criteria from its document.</p>
+          )}
+          <p style="margin:12px 0 0"><a href={`${base}/details`}>Enter details from the tender document</a></p>
+        </div>
+        <div>
+          <h2>What similar jobs went for</h2>
+          {points.length ? (
+            <>
+              <p style="margin:0 0 20px">{range ? `Winners bid between ${rand(range.lo)} and ${rand(range.hi)}.` : `Not enough winning ${t.workType ? WORK_PLURAL[t.workType] : ''} bids for a range yet.`}</p>
+              <PriceBand points={points} range={range} mine={mine} />
+            </>
+          ) : (
+            <>
+              <p style="margin:0 0 8px">No past prices for this kind of job yet.</p>
+              <p class="sub" style="margin:0">Record results in My bids and the range shows here.</p>
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  )}
+
+  <div class="cols section">
+    <section>
+      <h2>What it’s for</h2>
+      <p style="margin:0 0 12px">{readableText(t.description) ?? <Dash />}</p>
+      <p class="sub" style="margin:0">{t.relevanceReason}{t.provinceSource === 'read' && ' The province is read from the description.'}{t.provinceSource === 'lookup' && ' The province comes from the buyer.'}</p>
+      {!t.bid && <p style="margin:12px 0 0"><a href={`${base}/details`}>Correct the title, province or work type</a></p>}
+    </section>
+    <section id="documents">
+      <h2>Tender documents</h2>
+      {t.documents.length ? (
+        <ul class="list">
+          {t.documents.map((d) => (
+            <li>
+              <span class="grow">
+                {d.localPath ? <a href={`/files/${d.pdfPath ?? d.localPath}`} target="_blank" data-astro-reload>{d.title ?? 'Untitled document'}</a>
+                  : d.url ? <a href={d.url} target="_blank" rel="noreferrer">{d.title ?? 'Untitled document'}</a> : d.title ?? 'Untitled document'}
+              </span>
+              <span class="sub">
+                {d.pages ? `${d.pages} pages, saved` : d.localPath ? (d.format === 'msg' ? 'Outlook email, saved' : `${(d.format ?? '').toUpperCase()}, saved, open in Word`) : d.format === 'msg' ? 'Outlook email' : (d.format ?? '').toUpperCase() || <Dash />}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : <p class="sub">eTenders has no documents for this tender.</p>}
+      {t.firstSeenAt && <p class="sub" style="margin:0">First seen {fmtWhen(desk.now, t.firstSeenAt)}.</p>}
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .x {
+    border: none;
+    color: var(--muted);
+    min-height: 32px;
+    width: 32px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .x:hover {
+    background: var(--soft);
+    color: var(--ink);
+  }
+
+  .add summary {
+    cursor: pointer;
+    color: var(--forest);
+    font-weight: 600;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  form {
+    margin: 0;
+  }
+</style>

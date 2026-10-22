@@ -1,15 +1,20 @@
 ---
 // Vault: which documents will let me down?
-import Layout from '../layouts/Layout.astro';
-import EmptyState from '../components/EmptyState.astro';
-import { addDays, fmtDay } from '../lib/dates.ts';
+import Layout from '../../layouts/Layout.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import Icon from '../../components/Icon.astro';
+import { Add01Icon, Upload01Icon } from '@hugeicons/core-free-icons';
+import { addDays, fmtDay } from '../../lib/dates.ts';
 
 const desk = await Astro.locals.desk();
 const problems = desk.vaultProblems();
 const soon = addDays(desk.now, 30);
 ---
 <Layout title="Vault">
-  <h1>Vault</h1>
+  <div class="title-row">
+    <h1>Vault</h1>
+    <a class="btn with-icon" href="/vault/new"><Icon icon={Add01Icon} size={18} />Add a Document</a>
+  </div>
   <p class="lede" style="margin-bottom:32px">
     {problems.length
       ? `${problems.length} ${problems.length === 1 ? 'document needs' : 'documents need'} attention before your bids close.`
@@ -18,15 +23,16 @@ const soon = addDays(desk.now, 30);
   {desk.vault.length ? (
     <div class="tablebox">
       <table>
-        <thead><tr><th>Document</th><th>Valid until</th><th>Used in</th></tr></thead>
+        <thead><tr><th class="col-number">#</th><th>Document</th><th>Valid until</th><th>Used in</th><th class="col-actions">Actions</th></tr></thead>
         <tbody>
-          {desk.vault.map((v) => {
+          {desk.vault.map((v, i) => {
             const used = desk.vaultUsedIn(v).length;
             const clash = desk.vaultClashes(v).length;
             const expired = desk.expired(v);
             return (
               <tr>
-                <td><span style="font-weight:600">{v.name}</span>{v.notes && <div class="sub">{v.notes}</div>}</td>
+                <td class="col-number">{i + 1}</td>
+                <td>{v.filePath ? <a class="tname" href={`/files/${v.filePath}`}>{v.name}</a> : <span style="font-weight:600">{v.name}</span>}{v.notes && <div class="sub">{v.notes}</div>}</td>
                 <td>
                   {!v.filePath ? <span class="mark">Not uploaded</span>
                     : !v.expiresAt ? <span class="sub">No expiry</span>
@@ -35,6 +41,7 @@ const soon = addDays(desk.now, 30);
                   {clash > 0 && <div class="sub">Before {clash} {clash === 1 ? 'tender closes' : 'tenders close'}</div>}
                 </td>
                 <td>{used} {used === 1 ? 'tender' : 'tenders'}</td>
+                <td class="col-actions"><a class="btn small with-icon" href={`/vault/${v.id}`}><Icon icon={Upload01Icon} size={16} />{v.filePath ? 'Replace' : 'Upload'}</a></td>
               </tr>
             );
           })}

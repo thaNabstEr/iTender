@@ -1,0 +1,160 @@
+---
+// Details from the tender document, entered by hand until Claude reads the documents (phase 3):
+// briefing, how to submit, scoring and specific goals. Also corrects the title, province and work.
+import { actions, isInputError } from 'astro:actions';
+import { eq } from 'drizzle-orm';
+import Layout from '../../../layouts/Layout.astro';
+import Dash from '../../../components/Dash.astro';
+import { db, schema } from '../../../lib/db.ts';
+import { PROVINCES, WORK_LABEL } from '../../../lib/desk.ts';
+import { GOAL_FIELDS } from '../../../lib/forms.ts';
+import { sastDate, fmtTime } from '../../../lib/dates.ts';
+
+const ocid = Astro.params.ocid!;
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+
+const saved = Astro.getActionResult(actions.saveTenderDetails);
+if (saved?.data) return Astro.redirect(base);
+const listActions = [actions.addCriterion, actions.removeCriterion, actions.addGoal, actions.removeGoal].map((a) => Astro.getActionResult(a));
+if (listActions.some((r) => r?.data)) return Astro.redirect(`${base}/details`);
+const err = saved?.error ?? listActions.find((r) => r?.error)?.error;
+const problem = err ? (isInputError(err) ? `Check ${Object.keys(err.fields).join(', ')}.` : err.message) : null;
+
+const [t] = await db.select().from(schema.tenders).where(eq(schema.tenders.ocid, ocid));
+if (!t) return Astro.rewrite('/404');
+const criteria = await db.select().from(schema.funcCriteria).where(eq(schema.funcCriteria.ocid, ocid));
+const goals = await db.select().from(schema.specificGoals).where(eq(schema.specificGoals.ocid, ocid));
+const vault = await db.select({ kind: schema.vaultDocuments.kind, name: schema.vaultDocuments.name }).from(schema.vaultDocuments);
+const local = (d: Date | null) => (d ? `${sastDate(d)}T${fmtTime(d)}` : '');
+const goalPoints = goals.reduce((a, g) => a + (g.points ?? 0), 0);
+---
+<Layout title="Details from the tender document">
+  <a href={base} class="back">{t.title ?? t.reference}</a>
+  <h1 style="margin-top:12px">Details from the tender document</h1>
+  <p class="lede" style="margin-bottom:32px">Nothing reads the tender documents yet, so copy these from them. The tender page and checklist use what you enter.</p>
+  {problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+
+  <form method="POST" action={actions.saveTenderDetails}>
+    <input type="hidden" name="ocid" value={ocid} />
+    <h2>The tender</h2>
+    <div class="fields">
+      <label>Title<input type="text" name="title" value={t.title ?? ''} placeholder="A short name, e.g. Municipal website redevelopment" /></label>
+      <label>Province
+        <select name="province" style="width:100%">
+          <option value="" selected={!t.province}>Not known</option>
+          {['National', ...PROVINCES].map((p) => <option selected={p === t.province}>{p}</option>)}
+        </select>
+      </label>
+      <label>Work
+        <select name="workType" style="width:100%">
+          {Object.entries(WORK_LABEL).map(([k, l]) => <option value={k} selected={k === (t.workType ?? 'website')}>{l}</option>)}
+        </select>
+      </label>
+    </div>
+
+    <h2>Briefing</h2>
+    <div class="fields">
+      <label>When<input type="datetime-local" name="briefingAt" value={local(t.briefingAt)} /></label>
+      <label>Where<input type="text" name="briefingWhere" value={t.briefingWhere ?? ''} placeholder="Venue or online link" /></label>
+    </div>
+    <div style="margin:-16px 0 32px">
+      <div class="q"><p>Is the briefing compulsory? Missing a compulsory briefing disqualifies the bid.</p><div class="yn"><label><input type="checkbox" name="briefingCompulsory" checked={t.briefingCompulsory} /> Compulsory</label></div></div>
+    </div>
+
+    <h2>How to submit</h2>
+    <div class="fields">
+      <label>Method
+        <select name="submitMethod" style="width:100%">
+          <option value="" selected={!t.submitMethod}>Not known</option>
+          {['Tender box', 'Email', 'eTender upload', 'Courier'].map((m) => <option selected={m === t.submitMethod}>{m}</option>)}
+        </select>
+      </label>
+      <label>Where<input type="text" name="submitWhere" value={t.submitWhere ?? ''} placeholder="Address or email" /></label>
+      <label>Copies<input type="text" name="submitCopies" value={t.submitCopies ?? ''} placeholder="e.g. 1 original, 1 copy" /></label>
+    </div>
+
+    <h2>Scoring</h2>
+    <div class="fields">
+      <label>Functionality Threshold, Out of 100<input type="number" min="0" max="100" name="funcThreshold" value={t.funcThreshold ?? ''} placeholder="Leave empty if there isn’t one" /></label>
+      <label>Preference Points System
+        <select name="preferenceSystem" style="width:100%">
+          <option value="" selected={!t.preferenceSystem}>Not known</option>
+          <option selected={t.preferenceSystem === '80/20'}>80/20</option>
+          <option selected={t.preferenceSystem === '90/10'}>90/10</option>
+        </select>
+      </label>
+    </div>
+    <div class="actions" style="margin-bottom:48px"><button type="submit" class="primary">Save Details</button><a class="btn" href={base}>Cancel</a></div>
+  </form>
+
+  <div class="cols section">
+    <section>
+      <h2>Functionality criteria</h2>
+      <p class="sub" style="margin:0 0 16px">Each part of the functionality score, with its points and the evidence that covers it.</p>
+      {criteria.length ? (
+        <ul class="list">
+          {criteria.map((c) => (
+            <li>
+              <span class="grow">{c.name}{c.sourcePage && <span class="sub"> page {c.sourcePage}</span>}</span>
+              <span class="sub">{c.points ?? <Dash />} pts</span>
+              <form method="POST" action={actions.removeCriterion}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="ocid" value={ocid} /><button type="submit" class="small-btn">Remove</button></form>
+            </li>
+          ))}
+        </ul>
+      ) : <p class="sub">None entered.</p>}
+      <form method="POST" action={actions.addCriterion} class="fields">
+        <input type="hidden" name="ocid" value={ocid} />
+        <label>Criterion<input type="text" name="name" required placeholder="e.g. Relevant experience" /></label>
+        <label>Points<input type="number" name="points" min="0" max="100" placeholder="e.g. 30" /></label>
+        <label>Evidence
+          <select name="evidence" style="width:100%">
+            <option value="upload">Your own upload</option>
+            {vault.map((v) => <option value={v.kind}>{v.name}</option>)}
+          </select>
+        </label>
+        <label>Page in the Tender Document<input type="number" name="sourcePage" min="1" placeholder="e.g. 12" /></label>
+        <div class="actions"><button type="submit">Add Criterion</button></div>
+      </form>
+    </section>
+    <section>
+      <h2>Specific goals</h2>
+      <p class="sub" style="margin:0 0 16px">From the tender’s SBD 6.1 or MBD 6.1. Each entity sets its own, so copy them as written.{goals.length > 0 && ` ${goalPoints} points in total.`}</p>
+      {goals.length ? (
+        <ul class="list">
+          {goals.map((g) => (
+            <li>
+              <span class="grow">{g.name}{g.profileField && <span class="sub"> claimed from your profile</span>}</span>
+              <span class="sub">{g.points ?? <Dash />} pts</span>
+              <form method="POST" action={actions.removeGoal}><input type="hidden" name="id" value={g.id} /><input type="hidden" name="ocid" value={ocid} /><button type="submit" class="small-btn">Remove</button></form>
+            </li>
+          ))}
+        </ul>
+      ) : <p class="sub">None entered.</p>}
+      <form method="POST" action={actions.addGoal} class="fields">
+        <input type="hidden" name="ocid" value={ocid} />
+        <label>Goal<input type="text" name="name" required placeholder="e.g. 51% or more black owned" /></label>
+        <label>Points<input type="number" name="points" min="0" max="20" placeholder="e.g. 10" /></label>
+        <label>Claimed from Your Profile When
+          <select name="profileField" style="width:100%">
+            <option value="">You decide each time</option>
+            {Object.entries(GOAL_FIELDS).map(([k, l]) => <option value={k}>{l}</option>)}
+          </select>
+        </label>
+        <label>Page in the Tender Document<input type="number" name="sourcePage" min="1" placeholder="e.g. 12" /></label>
+        <div class="actions"><button type="submit">Add Goal</button></div>
+      </form>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .small-btn {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .list form {
+    margin: 0;
+  }
+</style>

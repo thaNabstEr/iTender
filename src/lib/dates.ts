@@ -66,3 +66,9 @@ export function fmtWhen(now: Date, d: Date): string {
 export function sastYear(d: Date): number {
   return sast(d).y;
 }
+
+/** "2026-10-22", the SAST calendar date, as the eTenders API takes it. */
+export function sastDate(d: Date): string {
+  const p = sast(d);
+  return `${p.y}-${String(p.m + 1).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+}

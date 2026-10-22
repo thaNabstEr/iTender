@@ -3,35 +3,63 @@
 import { actions, isInputError } from 'astro:actions';
 import Layout from '../layouts/Layout.astro';
 import { PROVINCES } from '../lib/desk.ts';
+import { RULES, display, type RuleName } from '../lib/validation.ts';
 
 const result = Astro.getActionResult(actions.saveSettings);
 const desk = await Astro.locals.desk();
 const P = desk.profile;
 const A = desk.settings;
 
-const profileFields = [
-  ['name', 'Company name'], ['initials', 'Initials, for the avatar'], ['registrationNumber', 'Registration number'],
-  ['csdNumber', 'CSD supplier number'], ['taxPin', 'Tax compliance PIN'], ['address', 'Physical address'],
-  ['contactPerson', 'Contact person'], ['phone', 'Phone'], ['email', 'Email'],
-] as const;
-const LABELS: Record<string, string> = { blackOwnershipPct: 'Black ownership', womenOwnershipPct: 'Women ownership', alertEmail: 'Send alerts to', alertMode: 'Alert emails', vatRegistered: 'VAT-registered', youthOwned: 'Youth owned' };
-for (const [k, l] of profileFields) LABELS[k] = l;
+// What was just sent, so a rejected save keeps what was typed instead of going back to the saved values.
+const failed = !!result?.error;
+const sent = failed ? await Astro.request.clone().formData().catch(() => null) : null;
+const typed = (name: string) => (sent?.has(name) ? String(sent.get(name) ?? '') : null);
+const errors: Record<string, string[]> = result?.error && isInputError(result.error) ? (result.error.fields as Record<string, string[]>) : {};
+
+interface Field { key: string; label: string; rule: RuleName; type?: 'text' | 'tel' | 'email'; placeholder: string; autocomplete?: string; inputmode?: 'tel' | 'email' }
+const profileFields: Field[] = [
+  { key: 'name', label: 'Company Name', rule: 'name', placeholder: 'e.g. Acme Digital (Pty) Ltd', autocomplete: 'organization' },
+  { key: 'initials', label: 'Initials, for the Avatar', rule: 'initials', placeholder: 'e.g. AD' },
+  { key: 'registrationNumber', label: 'Registration Number', rule: 'registrationNumber', placeholder: 'e.g. 2019/123456/07' },
+  { key: 'csdNumber', label: 'CSD Supplier Number', rule: 'csdNumber', placeholder: 'e.g. MAAA0123456' },
+  { key: 'taxPin', label: 'Tax Compliance PIN', rule: 'taxPin', placeholder: '10 letters and numbers, from SARS' },
+  { key: 'address', label: 'Physical Address', rule: 'address', placeholder: 'Street, suburb, city, postal code', autocomplete: 'street-address' },
+  { key: 'contactPerson', label: 'Contact Person', rule: 'contactPerson', placeholder: 'e.g. Thandi Nkosi', autocomplete: 'name' },
+  { key: 'phone', label: 'Phone', rule: 'phone', type: 'tel', placeholder: 'e.g. 011 555 0123 or 082 555 0123', autocomplete: 'tel', inputmode: 'tel' },
+  { key: 'email', label: 'Email', rule: 'email', type: 'email', placeholder: 'name@company.co.za', autocomplete: 'email', inputmode: 'email' },
+];
+const value = (f: { key: string; rule: RuleName }) => typed(f.key) ?? display(f.rule, (P as Record<string, unknown> | null)?.[f.key] as string | null);
+
+const LABELS: Record<string, string> = Object.fromEntries(profileFields.map((f) => [f.key, f.label]));
+Object.assign(LABELS, { vatNumber: 'VAT Number', blackOwnershipPct: 'Black Ownership', womenOwnershipPct: 'Women Ownership', alertEmail: 'Send Alerts to' });
+const named = Object.keys(errors).map((k) => LABELS[k] ?? k);
 const problem = result?.error
-  ? isInputError(result.error) ? `Check ${Object.keys(result.error.fields).map((f) => LABELS[f] ?? f).join(', ')}.` : 'Something went wrong saving them. Try again.'
+  ? isInputError(result.error)
+    ? `Check ${named.join(', ')}.`
+    : 'Something went wrong saving them. Try again.'
   : null;
-const vat = P?.vatRegistered ?? false;
-const mode = A?.alertMode ?? 'instant';
+
+const vat = typed('vatRegistered') ? typed('vatRegistered') === 'yes' : (P?.vatRegistered ?? false);
+const mode = typed('alertMode') ?? A?.alertMode ?? 'instant';
+const attrs = (f: { key: string; rule: RuleName }) => ({
+  pattern: RULES[f.rule].html, title: RULES[f.rule].hint, 'aria-invalid': errors[f.key] ? ('true' as const) : undefined,
+});
 ---
 <Layout title="Settings" toast={result?.data ? 'Settings saved' : undefined}>
   <h1>Settings</h1>
   <p class="lede" style="margin-bottom:36px">Your details fill every form. Change them here once, not on each tender.</p>
   {problem && <p class="banner" role="alert" style="display:block">Those details weren’t saved. {problem}</p>}
 
-  <form method="POST" action={actions.saveSettings}>
+  <form method="POST" action={actions.saveSettings} data-settings>
     <h2>Company profile</h2>
     <p class="sub" style="margin:0 0 16px">Used on SBD and MBD forms.</p>
     <div class="fields">
-      {profileFields.map(([k, label]) => <label>{label}<input type="text" name={k} value={P?.[k] ?? ''} /></label>)}
+      {profileFields.map((f) => (
+        <label>{f.label}
+          <input type={f.type ?? 'text'} name={f.key} value={value(f)} placeholder={f.placeholder} autocomplete={f.autocomplete} inputmode={f.inputmode} {...attrs(f)} />
+          {errors[f.key] && <span class="field-error" role="alert">{errors[f.key][0]}</span>}
+        </label>
+      ))}
     </div>
 
     <h2>VAT</h2>
@@ -41,14 +69,21 @@ const mode = A?.alertMode ?? 'instant';
         <div class="yn"><label><input type="radio" name="vatRegistered" value="yes" checked={vat} /> Yes</label><label><input type="radio" name="vatRegistered" value="no" checked={!vat} /> No</label></div>
       </div>
     </div>
-    <div class="fields"><label>VAT number<input type="text" name="vatNumber" value={P?.vatNumber ?? ''} /></label></div>
+    <div class="fields">
+      <label>VAT Number
+        <input type="text" name="vatNumber" data-vat-number inputmode="numeric" autocomplete="off" value={typed('vatNumber') ?? P?.vatNumber ?? ''}
+          placeholder={vat ? 'e.g. 4123456789' : 'Not VAT-registered'} disabled={!vat} required={vat}
+          pattern={RULES.vatNumber.html} title={RULES.vatNumber.hint} aria-invalid={errors.vatNumber ? 'true' : undefined} />
+        {errors.vatNumber && <span class="field-error" role="alert">{errors.vatNumber[0]}</span>}
+      </label>
+    </div>
 
     <h2>Ownership</h2>
     <p class="sub" style="margin:0 0 16px">Used to claim preference points.</p>
     <div class="fields">
-      <label>Black ownership, %<input type="number" min="0" max="100" name="blackOwnershipPct" value={P?.blackOwnershipPct ?? ''} /></label>
-      <label>Women ownership, %<input type="number" min="0" max="100" name="womenOwnershipPct" value={P?.womenOwnershipPct ?? ''} /></label>
-      <label>Province of the business
+      <label>Black Ownership<span class="affix"><input type="number" min="0" max="100" step="1" inputmode="numeric" aria-invalid={errors.blackOwnershipPct ? 'true' : undefined} name="blackOwnershipPct" placeholder="0 to 100" value={typed('blackOwnershipPct') ?? P?.blackOwnershipPct ?? ''} /><span aria-hidden="true">%</span></span>{errors.blackOwnershipPct && <span class="field-error" role="alert">Enter a whole number from 0 to 100.</span>}</label>
+      <label>Women Ownership<span class="affix"><input type="number" min="0" max="100" step="1" inputmode="numeric" aria-invalid={errors.womenOwnershipPct ? 'true' : undefined} name="womenOwnershipPct" placeholder="0 to 100" value={typed('womenOwnershipPct') ?? P?.womenOwnershipPct ?? ''} /><span aria-hidden="true">%</span></span>{errors.womenOwnershipPct && <span class="field-error" role="alert">Enter a whole number from 0 to 100.</span>}</label>
+      <label>Province of the Business
         <select name="province" style="width:100%">
           <option value="" selected={!P?.province}>Not set</option>
           {PROVINCES.map((p) => <option selected={p === P?.province}>{p}</option>)}
@@ -63,64 +98,37 @@ const mode = A?.alertMode ?? 'instant';
 
     <h2>Alerts</h2>
     <p class="sub" style="margin:0 0 16px">By email. The banner in the app shows urgent items either way.</p>
-    <div class="fields"><label>Send alerts to<input type="email" name="alertEmail" value={A?.alertEmail ?? ''} /></label></div>
+    <div class="fields">
+      <label>Send Alerts to
+        <input type="email" name="alertEmail" value={typed('alertEmail') ?? A?.alertEmail ?? ''} placeholder="Where alerts go, e.g. you@company.co.za" autocomplete="email" inputmode="email" {...attrs({ key: 'alertEmail', rule: 'email' })} />
+        {errors.alertEmail && <span class="field-error" role="alert">{errors.alertEmail[0]}</span>}
+      </label>
+    </div>
     <div style="margin:0 0 32px">
-      <div class="q"><p>An email for each new tender, as soon as it’s found</p><div class="yn"><label><input type="radio" name="alertMode" value="instant" checked={mode === 'instant'} /> Choose</label></div></div>
-      <div class="q"><p>One email each weekday at 07:00 with everything new</p><div class="yn"><label><input type="radio" name="alertMode" value="digest" checked={mode === 'digest'} /> Choose</label></div></div>
-      <div class="q"><p>Email me when a tender I’m bidding on changes</p><div class="yn"><label><input type="checkbox" name="alertOnChanges" checked={A?.alertOnChanges ?? true} /> On</label></div></div>
+      <!-- The first two are one choice: switching one on switches the other off. -->
+      <label class="q toggle"><span>An email for each new tender, as soon as it’s found</span><input type="radio" class="switch" name="alertMode" value="instant" checked={mode === 'instant'} /></label>
+      <label class="q toggle"><span>One email each weekday at 07:00 with everything new</span><input type="radio" class="switch" name="alertMode" value="digest" checked={mode === 'digest'} /></label>
+      <label class="q toggle"><span>Email me when a tender I’m bidding on changes</span><input type="checkbox" class="switch" name="alertOnChanges" checked={A?.alertOnChanges ?? true} /></label>
     </div>
 
-    <div class="actions"><button type="submit" class="primary">Save changes</button></div>
+    <div class="actions"><button type="submit" class="primary">Save Changes</button></div>
   </form>
 </Layout>
 
-<style>
-  .fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px 20px;
-    margin: 0 0 32px;
+<script>
+  // The VAT number only applies to a VAT-registered business, so it's inactive unless Yes is chosen.
+  function syncVat() {
+    const input = document.querySelector<HTMLInputElement>('[data-vat-number]');
+    if (!input) return;
+    const yes = document.querySelector<HTMLInputElement>('input[name=vatRegistered]:checked')?.value === 'yes';
+    input.disabled = !yes;
+    input.required = yes;
+    input.placeholder = yes ? 'e.g. 4123456789' : 'Not VAT-registered';
+    if (!yes) input.setCustomValidity('');
   }
-
-  .fields label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .yn {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-  }
-
-  .yn label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 15px;
-    color: var(--ink);
-    min-height: 44px;
-  }
-
-  .q {
-    padding: 14px 0;
-    border-bottom: 1px solid var(--line);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 24px;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .q:first-child {
-    border-top: 1px solid var(--line);
-  }
-
-  .q p {
-    margin: 0;
-    flex: 1 1 360px;
-  }
-</style>
+  document.addEventListener('change', (e) => {
+    if ((e.target as Element).matches('input[name=vatRegistered]')) syncVat();
+  });
+  document.addEventListener('astro:page-load', syncVat);
+  syncVat();
+</script>

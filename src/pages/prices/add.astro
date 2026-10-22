@@ -1,0 +1,50 @@
+---
+// Add a bid register: what did this job go for? Typed in from a bid opening register or award
+// notice. (PLAN.md has Claude reading the uploaded register; until then it's by hand.)
+import { actions, isInputError } from 'astro:actions';
+import Layout from '../../layouts/Layout.astro';
+import { WORK_LABEL } from '../../lib/desk.ts';
+import { sastYear } from '../../lib/dates.ts';
+
+const result = Astro.getActionResult(actions.addRegister);
+if (result?.data) return Astro.redirect('/prices');
+const problem = result?.error ? (isInputError(result.error) ? Object.values(result.error.fields).flat().join(' ') : result.error.message) : null;
+const ROWS = 10;
+---
+<Layout title="Add a bid register">
+  <a href="/prices" class="back">Prices</a>
+  <h1 style="margin-top:12px">Add a bid register</h1>
+  <p class="lede" style="margin-bottom:32px">Copy the bidders and prices from a bid opening register or award notice. Winning prices make the suggested range on every similar tender.</p>
+  {problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+  <form method="POST" action={actions.addRegister} enctype="multipart/form-data">
+    <div class="fields">
+      <label>Job<input type="text" name="job" required placeholder="e.g. Website revamp and hosting" /></label>
+      <label>Entity<input type="text" name="entity" placeholder="e.g. Winnie Madikizela-Mandela LM" /></label>
+      <label>Work
+        <select name="workType" style="width:100%">{Object.entries(WORK_LABEL).map(([k, l]) => <option value={k}>{l}</option>)}</select>
+      </label>
+      <label>Year<input type="number" name="year" min="2000" max="2100" value={sastYear(new Date())} placeholder="e.g. 2026" required /></label>
+    </div>
+    <h2>Bids</h2>
+    <p class="sub" style="margin:0 0 16px">Prices as listed, in rands. Leave unused rows empty.</p>
+    <div class="tablebox">
+      <table style="min-width:540px">
+        <thead><tr><th class="col-number">#</th><th>Bidder</th><th>Price, R</th><th>Won</th></tr></thead>
+        <tbody>
+          {Array.from({ length: ROWS }, (_, i) => (
+            <tr>
+              <td class="col-number">{i + 1}</td>
+              <td><input type="text" name="bidder" placeholder="Company name" aria-label={`Bidder ${i + 1}`} style="width:100%" /></td>
+              <td class="num" style="width:180px"><input type="number" name="price" min="0" step="0.01" placeholder="0.00" aria-label={`Price for bidder ${i + 1}`} style="width:170px" /></td>
+              <td style="width:80px"><label class="yn" style="gap:6px"><input type="radio" name="winner" value={i} aria-label={`Bidder ${i + 1} won`} /></label></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div class="drop" style="margin-top:24px">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)">The Register Itself, to Keep with It (Optional)<input type="file" name="file" accept="application/pdf,.pdf,image/*" /></label>
+    </div>
+    <div class="actions"><button type="submit" class="primary">Save Bid Register</button><a class="btn" href="/prices">Cancel</a></div>
+  </form>
+</Layout>

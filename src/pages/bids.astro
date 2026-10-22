@@ -28,26 +28,27 @@ const sections = [
 
   {sections.map((s) => (
     <div class="section">
-      <h2>{s.title} <span class="sub" style="font-weight:500">{s.bids.length}</span></h2>
+      <h2>{s.title}</h2>
       {s.bids.length ? <BidTable desk={desk} bids={s.bids} /> : <p class="sub">{s.empty}</p>}
     </div>
   ))}
 
   <div class="section">
-    <h2>Closed <span class="sub" style="font-weight:500">{closed.length}</span></h2>
+    <h2>Closed</h2>
     {closed.length ? (
       <>
         <p class="sub" style="margin:0 0 12px">Won {won} of {closed.length}.</p>
         <div class="tablebox">
           <table>
-            <thead><tr><th>Bid</th><th>Result</th><th class="num">Your price</th><th class="num">Winning price</th></tr></thead>
+            <thead><tr><th class="col-number">#</th><th>Bid</th><th>Result</th><th>Your price</th><th>Winning price</th></tr></thead>
             <tbody>
-              {closed.map((t) => {
+              {closed.map((t, i) => {
                 const isWon = desk.stage(t) === 'won';
                 const mine = desk.bidPrice(t);
                 const winning = t.bid!.winningPriceCents ?? (isWon ? mine : null);
                 return (
                   <tr>
+                    <td class="col-number">{i + 1}</td>
                     <td><span class="tname">{t.title ?? t.reference}</span><div class="sub">{t.entity ?? <Dash />}</div></td>
                     <td>{isWon ? 'Won' : 'Lost'}{!isWon && t.bid!.winnerName && <div class="sub">to {t.bid!.winnerName}</div>}</td>
                     <td class="num">{mine ? rand(mine) : <Dash />}</td>

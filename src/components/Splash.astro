@@ -3,15 +3,18 @@ import SplashArt from './SplashArt.astro';
 ---
 <div class="splash" id="splash" aria-hidden="true">
   <SplashArt variant="splash" />
-  <p class="sp-word">Tender desk</p>
+  <p class="sp-word">iTender</p>
 </div>
 
 <script>
-  // Plays only on a full load. ClientRouter page changes drop the splash from the incoming page.
+  // Plays once per browser: on the first visit, and again only after the site's data is cleared.
+  // The layout hides it before paint once it's been seen. ClientRouter page changes never play it.
   document.addEventListener('astro:before-swap', (e) => e.newDocument.getElementById('splash')?.remove());
 
   const sp = document.getElementById('splash');
-  if (sp) {
+  if (sp && document.documentElement.dataset.splash === 'seen') sp.remove();
+  else if (sp) {
+    localStorage.setItem('td-splash-seen', '1');
     const done = () => sp.remove();
     const skip = () => sp.classList.add('skip');
     sp.addEventListener('animationend', (e) => {
@@ -25,6 +28,10 @@ import SplashArt from './SplashArt.astro';
 
 <style is:global>
   /* Global because the art is rendered by SplashArt.astro via set:html. */
+  html[data-splash="seen"] .splash {
+    display: none;
+  }
+
   .splash {
     position: fixed;
     inset: 0;

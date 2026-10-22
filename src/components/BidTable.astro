@@ -3,17 +3,19 @@ import type { Desk, DeskTender } from '../lib/desk.ts';
 import { shortDoc } from '../lib/desk.ts';
 import { fmtDay } from '../lib/dates.ts';
 import { rand } from '../lib/money.ts';
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import Closes from './Closes.astro';
 import Dash from './Dash.astro';
+import Icon from './Icon.astro';
 
 interface Props { desk: Desk; bids: DeskTender[] }
 const { desk, bids } = Astro.props;
 ---
 <div class="tablebox">
   <table>
-    <thead><tr><th>Bid</th><th class="num">Date</th><th class="num">Documents</th><th class="num">Your price</th><th>Next step</th></tr></thead>
+    <thead><tr><th class="col-number">#</th><th>Bid</th><th>Date</th><th>Documents</th><th>Your price</th><th>Actions</th></tr></thead>
     <tbody>
-      {bids.map((t) => {
+      {bids.map((t, i) => {
         const stage = desk.stage(t);
         const href = `/tenders/${encodeURIComponent(t.ocid)}`;
         const missing = desk.missingDocs(t);
@@ -22,6 +24,7 @@ const { desk, bids } = Astro.props;
         const expected = desk.resultExpected(t);
         return (
           <tr>
+            <td class="col-number">{i + 1}</td>
             <td><a class="tname" href={href}>{t.title ?? t.reference}</a><div class="sub">{t.entity ?? <Dash />}</div></td>
             <td class="num">
               {stage === 'preparing' ? <Closes desk={desk} t={t} />
@@ -33,12 +36,13 @@ const { desk, bids } = Astro.props;
             <td>
               {stage === 'preparing' ? (
                 missing.length ? (
-                  <a href={href}>{desk.closesSoon(t) ? <span class="mark">Finish {shortDoc(missing[0].name)}</span> : `Finish ${shortDoc(missing[0].name)}`}</a>
-                ) : total ? <a href={`${href}/submit`}>Mark as submitted</a> : <a href={href}>Build the checklist</a>
+                  <a class:list={['btn small with-icon', { urgent: desk.closesSoon(t) }]} href={href}>Finish {shortDoc(missing[0].name)}<Icon icon={ArrowRight01Icon} size={16} /></a>
+                ) : total ? <a class="btn small with-icon" href={`${href}/submit`}>Mark as Submitted<Icon icon={ArrowRight01Icon} size={16} /></a>
+                  : <a class="btn small with-icon" href={href}>Build the Checklist<Icon icon={ArrowRight01Icon} size={16} /></a>
               ) : stage === 'submitted' ? (
                 <span class="sub">Closes {t.closesAt ? fmtDay(t.closesAt) : <Dash />}</span>
               ) : desk.resultDue(t) ? (
-                <a href={`${href}/result`}><span class="mark">Record the result</span></a>
+                <a class="btn small with-icon urgent" href={`${href}/result`}>Record the Result<Icon icon={ArrowRight01Icon} size={16} /></a>
               ) : (
                 <span class="sub">Result expected around {expected ? fmtDay(expected) : <Dash />}</span>
               )}

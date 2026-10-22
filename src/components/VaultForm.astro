@@ -1,0 +1,30 @@
+---
+// Upload or replace a vault document, with its issue and expiry dates. Used by /vault/new and /vault/[id].
+import { actions, isInputError } from 'astro:actions';
+import { sastDate } from '../lib/dates.ts';
+import type { VaultDocument } from '../lib/desk.ts';
+
+interface Props { v?: VaultDocument; name?: string }
+const { v, name } = Astro.props;
+const result = Astro.getActionResult(actions.saveVaultDoc);
+const problem = result?.error ? (isInputError(result.error) ? Object.values(result.error.fields).flat().join(' ') : result.error.message) : null;
+---
+{problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+<form method="POST" action={actions.saveVaultDoc} enctype="multipart/form-data">
+  {v && <input type="hidden" name="id" value={v.id} />}
+  <div class="fields">
+    <label>Name<input type="text" name="name" value={v?.name ?? name ?? ''} placeholder="e.g. Professional indemnity cover" required maxlength="100" /></label>
+    <label>Issued<input type="date" name="issuedAt" value={v?.issuedAt ? sastDate(v.issuedAt) : ''} /></label>
+    <label>Valid Until<input type="date" name="expiresAt" value={v?.expiresAt ? sastDate(v.expiresAt) : ''} /></label>
+    <label>Notes<input type="text" name="notes" value={v?.notes ?? ''} placeholder="e.g. Level 1, commissioned 4 Nov" /></label>
+  </div>
+  <div class="drop">
+    {v?.filePath && <p style="margin:0">Current file: <a href={`/files/${v.filePath}`}>{v.filePath.split('/').pop()}</a></p>}
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)">
+      {v?.filePath ? 'Replace it with' : 'The Document, as a PDF or Scan'}
+      <input type="file" name="file" accept="application/pdf,.pdf,image/*,.doc,.docx" required={!v?.filePath} />
+    </label>
+    <p class="sub" style="margin:0">Leave the expiry empty for documents that don’t expire. Stored in data/vault on this laptop only.</p>
+  </div>
+  <div class="actions"><button type="submit" class="primary">{v?.filePath ? 'Save Changes' : 'Upload'}</button><a class="btn" href="/vault">Cancel</a></div>
+</form>

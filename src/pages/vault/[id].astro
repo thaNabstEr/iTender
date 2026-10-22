@@ -1,0 +1,21 @@
+---
+// Replace or upload one vault document.
+import { actions } from 'astro:actions';
+import Layout from '../../layouts/Layout.astro';
+import VaultForm from '../../components/VaultForm.astro';
+
+if (Astro.getActionResult(actions.saveVaultDoc)?.data) return Astro.redirect('/vault');
+const desk = await Astro.locals.desk();
+const v = desk.vault.find((x) => x.id === Number(Astro.params.id));
+if (!v) return Astro.rewrite('/404');
+const used = desk.vaultUsedIn(v);
+---
+<Layout title={v.name}>
+  <a href="/vault" class="back">Vault</a>
+  <h1 style="margin-top:12px">{v.name}</h1>
+  <p class="lede" style="margin-bottom:32px">
+    {v.filePath ? 'Replace the file or update its dates.' : 'Not uploaded yet.'}
+    {used.length > 0 && ` Used in ${used.length} active ${used.length === 1 ? 'bid' : 'bids'}.`}
+  </p>
+  <VaultForm v={v} />
+</Layout>

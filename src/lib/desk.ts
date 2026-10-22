@@ -1,7 +1,7 @@
 // Loads what the screens need and applies the product rules in PLAN.md: bid stages, document
 // status, nav counters and the banner. Every screen reads from here, so a fact shown in two
 // places always comes from the same value.
-import { desc, eq, getTableColumns } from 'drizzle-orm';
+import { desc, eq, getTableColumns, inArray, or } from 'drizzle-orm';
 import { db, schema } from './db.ts';
 import { addDays, daysFrom, fmtDay, fmtDayAt, fmtTime } from './dates.ts';
 import { vatOn } from './money.ts';
@@ -17,6 +17,8 @@ export type Settings = typeof schema.settings.$inferSelect;
 type Change = typeof schema.tenderChanges.$inferSelect;
 type PricingLine = typeof schema.pricingLines.$inferSelect;
 type Criterion = typeof schema.funcCriteria.$inferSelect;
+export type Goal = typeof schema.specificGoals.$inferSelect;
+export type TenderDocument = typeof schema.tenderDocuments.$inferSelect;
 
 export type Stage = 'preparing' | 'submitted' | 'awaiting' | 'won' | 'lost' | 'cancelled';
 
@@ -24,6 +26,8 @@ export interface DeskTender extends Tender {
   bid: (Bid & { docs: BidDocument[]; lines: PricingLine[] }) | null;
   changes: Change[];
   criteria: Criterion[];
+  goals: Goal[];
+  documents: TenderDocument[];
 }
 
 export interface Register {
@@ -32,6 +36,9 @@ export interface Register {
   job: string | null;
   workType: 'website' | 'system' | 'design' | null;
   year: number | null;
+  sourceFile: string | null;
+  /** Set when the register came from a result recorded in My bids. */
+  ocid: string | null;
   bids: { bidder: string | null; priceCents: number | null; won: boolean }[];
 }
 
@@ -41,14 +48,19 @@ export const TYPE_LABEL = { quotation: 'Quotation', open_bid: 'Open bid' } as co
 export const PROVINCES = ['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'];
 
 export async function loadDesk(now = new Date()) {
-  const [tenderRows, bidRows, docRows, lineRows, changeRows, criteriaRows, vault, profiles, settingsRows, registerRows, registerBidRows, lastRuns] =
+  // Only tenders that matter here: relevant ones, and any being bid on.
+  const tenderRows = await db.select(tenderColumns).from(schema.tenders)
+    .where(or(eq(schema.tenders.relevant, true), inArray(schema.tenders.ocid, db.select({ ocid: schema.bids.ocid }).from(schema.bids))));
+  const ocids = tenderRows.map((t) => t.ocid);
+  const [bidRows, docRows, lineRows, changeRows, criteriaRows, goalRows, tenderDocRows, vault, profiles, settingsRows, registerRows, registerBidRows, lastRuns] =
     await Promise.all([
-      db.select(tenderColumns).from(schema.tenders),
       db.select().from(schema.bids),
       db.select().from(schema.bidDocuments).orderBy(schema.bidDocuments.sortOrder),
       db.select().from(schema.pricingLines).orderBy(schema.pricingLines.sortOrder),
       db.select().from(schema.tenderChanges).orderBy(desc(schema.tenderChanges.detectedAt)),
       db.select().from(schema.funcCriteria),
+      db.select().from(schema.specificGoals),
+      db.select().from(schema.tenderDocuments).where(inArray(schema.tenderDocuments.ocid, ocids)).orderBy(schema.tenderDocuments.id),
       db.select().from(schema.vaultDocuments).orderBy(schema.vaultDocuments.id),
       db.select().from(schema.companyProfile).where(eq(schema.companyProfile.id, 1)),
       db.select().from(schema.settings).where(eq(schema.settings.id, 1)),
@@ -58,7 +70,6 @@ export async function loadDesk(now = new Date()) {
     ]);
 
   const tenders: DeskTender[] = tenderRows
-    .filter((t) => t.relevant || bidRows.some((b) => b.ocid === t.ocid))
     .map((t) => {
       const bid = bidRows.find((b) => b.ocid === t.ocid);
       return {
@@ -66,6 +77,8 @@ export async function loadDesk(now = new Date()) {
         bid: bid ? { ...bid, docs: docRows.filter((d) => d.bidId === bid.id), lines: lineRows.filter((l) => l.bidId === bid.id) } : null,
         changes: changeRows.filter((c) => c.ocid === t.ocid),
         criteria: criteriaRows.filter((c) => c.ocid === t.ocid),
+        goals: goalRows.filter((g) => g.ocid === t.ocid),
+        documents: tenderDocRows.filter((d) => d.ocid === t.ocid),
       };
     });
 
@@ -75,6 +88,8 @@ export async function loadDesk(now = new Date()) {
     job: r.job,
     workType: r.workType,
     year: r.year,
+    sourceFile: r.sourceFile,
+    ocid: r.ocid,
     bids: registerBidRows.filter((b) => b.registerId === r.id),
   }));
 
@@ -268,6 +283,12 @@ export function shortDoc(name: string): string {
   return name.split(',')[0];
 }
 
+/** A document name inside a sentence: "SBD 6.1" stays, "Pricing schedule" becomes "the pricing schedule". */
+export function docInSentence(name: string): string {
+  const short = shortDoc(name);
+  return /^[SM]BD\b/.test(short) ? short : `the ${short.charAt(0).toLowerCase()}${short.slice(1)}`;
+}
+
 function lowerFirst(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
 }
@@ -281,7 +302,10 @@ export function changeText(c: Change): string {
     case 'briefing_at':
       return `Briefing moved from ${day(c.oldValue)} to ${day(c.newValue)}`;
     case 'document':
-      return `New document added: ${c.newValue ?? 'untitled'}`;
+    case 'documents': {
+      const titles = (c.newValue ?? '').split('\n').filter(Boolean);
+      return titles.length > 1 ? `${titles.length} new documents added` : `New document added: ${titles[0] ?? 'untitled'}`;
+    }
     case 'cancelled':
       return 'Tender cancelled';
     default:

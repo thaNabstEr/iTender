@@ -1,0 +1,139 @@
+---
+// Fill a form: is this form correct? One screen for each kind of checklist item: a form filled
+// from the profile, a disclosure, the SBD 6.1 claim, an upload, or the pricing schedule.
+import { actions, isInputError } from 'astro:actions';
+import Layout from '../../../../layouts/Layout.astro';
+import Tick from '../../../../components/Tick.astro';
+import PricingSchedule from '../../../../components/islands/PricingSchedule.svelte';
+import { DISCLOSURE_QUESTIONS, lastDisclosureAnswers, profileClaims } from '../../../../lib/forms.ts';
+import { pricePoints, suggestedRange } from '../../../../lib/prices.ts';
+
+const ocid = Astro.params.ocid!;
+const id = Number(Astro.params.id);
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+
+const results = [actions.saveForm, actions.uploadBidFile, actions.savePricing, actions.saveFormSource].map((a) => Astro.getActionResult(a));
+if (results[3]?.data) return Astro.redirect(Astro.url.pathname);
+if (results.some((r) => r?.data)) return Astro.redirect(base);
+const err = results.find((r) => r?.error)?.error;
+const problem = err ? (isInputError(err) ? Object.values(err.fields).flat().join(' ') || 'Check the fields.' : err.message) : null;
+
+const desk = await Astro.locals.desk();
+const t = desk.tenders.find((x) => x.ocid === ocid);
+const d = t?.bid?.docs.find((x) => x.id === id);
+if (!t || !d) return Astro.rewrite('/404');
+if (d.kind === 'vault') return Astro.redirect('/vault');
+
+const P = desk.profile;
+const vat = desk.vatRegistered();
+const data = d.formDataJson ? JSON.parse(d.formDataJson) : {};
+const answers: boolean[] = data.answers ?? (d.formType === 'disclosure' ? (await lastDisclosureAnswers()) ?? [] : []);
+const claimed = new Set<number>(data.claims ?? t.goals.filter((g) => profileClaims(g, P, t.province)).map((g) => g.id));
+const goalMax = t.goals.reduce((a, g) => a + (g.points ?? 0), 0);
+const claimedPts = t.goals.filter((g) => claimed.has(g.id)).reduce((a, g) => a + (g.points ?? 0), 0);
+const points = pricePoints(desk.registers, t.workType);
+const pdfs = t.documents.filter((x) => x.pdfPath);
+const source = data.source as { docId: number; from: number; to: number } | undefined;
+
+const profileRows: [string, string | null | undefined][] = [
+  ['Company Name', P?.name], ['Registration Number', P?.registrationNumber], ['CSD Supplier Number', P?.csdNumber],
+  ['Tax Compliance PIN', P?.taxPin], ['VAT Number', vat ? P?.vatNumber : 'Not VAT-registered'], ['Contact Person', P?.contactPerson],
+  ['Phone', P?.phone], ['Email', P?.email], ['Physical Address', P?.address],
+];
+const gaps = profileRows.filter(([, v]) => !v).map(([l]) => l);
+const lede = d.kind === 'upload' ? 'Your own document for this bid. Write it in your usual tool and upload the PDF.'
+  : d.formType === 'pricing' ? (vat ? 'Prices include VAT at 15%, as the tender asks.' : 'You’re not VAT-registered, so no VAT is added. Change this in Settings if that’s wrong.')
+  : d.formType === 'sbd61' ? 'Filled from your profile. Check the claims against the tender’s own form, then print and sign it.'
+  : `Filled from your profile${d.formType === 'disclosure' ? ' and your last declarations' : ''}. Check it, then print and sign.`;
+---
+<Layout title={d.name}>
+  <a href={base} class="back">{t.title ?? t.reference}</a>
+  <h1 style="margin-top:12px">{d.name}</h1>
+  <p class="lede" style="margin-bottom:32px">{lede}</p>
+  {problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+  {d.done && <p style="margin:-16px 0 24px"><Tick ok={true} /> Marked done. Saving again updates it.</p>}
+
+  {d.formType === 'pricing' ? (
+    <PricingSchedule client:load action={String(actions.savePricing)} ocid={ocid} id={id} vat={vat} points={points} range={suggestedRange(points)}
+      lines={t.bid!.lines.map((l) => ({ label: l.label, quantity: l.quantity, unitPriceCents: l.unitPriceCents }))} />
+  ) : d.kind === 'upload' ? (
+    <form method="POST" action={actions.uploadBidFile} enctype="multipart/form-data">
+      <input type="hidden" name="id" value={id} /><input type="hidden" name="ocid" value={ocid} />
+      <div class="drop">
+        {d.filePath && <p style="margin:0">Uploaded: <a href={`/files/${d.filePath}`}>{d.filePath.split('/').pop()}</a></p>}
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)">{d.filePath ? 'Replace it with' : 'PDF'}<input type="file" name="file" accept="application/pdf,.pdf,.doc,.docx" required /></label>
+      </div>
+      <div class="actions"><button type="submit" class="primary">Upload and Mark Done</button><a class="btn" href={base}>Cancel</a></div>
+    </form>
+  ) : (
+    <form method="POST" action={actions.saveForm}>
+      <input type="hidden" name="id" value={id} /><input type="hidden" name="ocid" value={ocid} />
+      <h2>Your details</h2>
+      <p class="sub" style="margin:0 0 16px">From your profile. <a href="/settings">Edit it in Settings</a></p>
+      <div class="fields">{profileRows.map(([l, v]) => <label>{l}<input type="text" readonly value={v ?? ''} placeholder="Not in your profile" /></label>)}</div>
+      {gaps.length > 0 && <p style="margin:-16px 0 28px"><span class="mark">Missing from your profile:</span> {gaps.join(', ')}.</p>}
+
+      {d.formType === 'disclosure' && (
+        <>
+          <h2>Declarations</h2>
+          <p class="note" style="margin:0 0 16px">{data.answers ? 'As you answered them for this bid.' : answers.length ? 'Answered from last time. Change any answer that’s no longer true.' : 'Answer each one as it stands today.'}</p>
+          <div style="margin:0 0 28px">
+            {DISCLOSURE_QUESTIONS.map((q, k) => (
+              <div class="q"><p>{q}</p><div class="yn">
+                <label><input type="radio" name={`q${k}`} value="yes" checked={answers[k] === true} required /> Yes</label>
+                <label><input type="radio" name={`q${k}`} value="no" checked={answers[k] === false} /> No</label>
+              </div></div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {d.formType === 'sbd61' && (
+        <>
+          <h2>Preference points</h2>
+          {t.goals.length ? (
+            <>
+              <p style="margin:0 0 6px">{t.preferenceSystem ? `This tender uses the ${t.preferenceSystem} system: ${t.preferenceSystem === '80/20' ? 80 : 90} points for price, up to ${goalMax} for specific goals.` : `Up to ${goalMax} points for specific goals.`}</p>
+              <p class="note" style="margin:0 0 16px">These goals are as you entered them from the tender document. Check them against its form before you sign.</p>
+              <div style="margin:0 0 20px">
+                {t.goals.map((g) => (
+                  <div class="q"><p>{g.name} <span class="sub">({g.points ?? 0} points)</span></p><div class="yn"><label><input type="checkbox" name="claims" value={g.id} checked={claimed.has(g.id)} /> Claim</label></div></div>
+                ))}
+              </div>
+              <p style="margin:0 0 28px">Points claimed when saved: <span class="total">{claimedPts}</span> <span class="sub">of {goalMax}</span></p>
+            </>
+          ) : (
+            <p style="margin:0 0 28px">No specific goals entered yet. <a href={`${base}/details`}>Add them from the tender document</a> so the claim can be checked.</p>
+          )}
+        </>
+      )}
+
+      <div class="actions" style="padding-top:8px"><button type="submit" class="primary">Save and Mark Done</button><a class="btn" href={base}>Cancel</a></div>
+    </form>
+  )}
+
+  {d.kind === 'form' && (
+    <div class="section" style="margin-top:48px">
+      <h2>The tender’s own form</h2>
+      {pdfs.length ? (
+        <>
+          <p class="sub" style="margin:0 0 16px">
+            {source ? `The bid pack includes pages ${source.from}${source.to !== source.from ? `–${source.to}` : ''} of the tender document after the sheet above, for you to sign.` : 'If the tender document has this form, say which pages, and the bid pack includes them after the sheet above.'}
+          </p>
+          <form method="POST" action={actions.saveFormSource} class="fields">
+            <input type="hidden" name="id" value={id} /><input type="hidden" name="ocid" value={ocid} />
+            <label>Tender Document
+              <select name="docId" style="width:100%">
+                <option value="">None, use the sheet only</option>
+                {pdfs.map((p) => <option value={p.id} selected={p.id === source?.docId}>{p.title} ({p.pages} pages)</option>)}
+              </select>
+            </label>
+            <label>From Page<input type="number" name="from" min="1" value={source?.from ?? ''} placeholder="e.g. 4" /></label>
+            <label>To Page<input type="number" name="to" min="1" value={source?.to ?? ''} placeholder="e.g. 6" /></label>
+            <div class="actions"><button type="submit">Save Pages</button></div>
+          </form>
+        </>
+      ) : <p class="sub" style="margin:0">The tender documents aren’t saved yet. They download a few seconds after you start the bid.</p>}
+    </div>
+  )}
+</Layout>

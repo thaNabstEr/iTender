@@ -1,0 +1,79 @@
+---
+// Bid pack: is the pack complete and how do I hand it in?
+import Layout from '../../../layouts/Layout.astro';
+import Closes from '../../../components/Closes.astro';
+import Dash from '../../../components/Dash.astro';
+import Tick from '../../../components/Tick.astro';
+import { indexPages, packParts } from '../../../lib/pack.ts';
+import { shortDoc } from '../../../lib/desk.ts';
+
+const ocid = Astro.params.ocid!;
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+const desk = await Astro.locals.desk();
+const t = desk.tenders.find((x) => x.ocid === ocid);
+if (!t?.bid) return Astro.redirect(base);
+
+const parts = await packParts(desk, t);
+const nIndex = indexPages(parts);
+const total = nIndex + parts.reduce((a, p) => a + p.pages, 0);
+const missing = parts.filter((p) => !p.ready);
+let at = nIndex + 1;
+const rows = parts.map((p) => {
+  const from = at;
+  at += p.pages;
+  return { ...p, range: p.pages === 1 ? `${from}` : `${from}–${at - 1}` };
+});
+const sign = parts.filter((p) => p.sign).map((p) => shortDoc(p.doc.name));
+const box = t.submitMethod === 'Tender box';
+---
+<Layout title="Bid pack">
+  <a href={base} class="back">{t.title ?? t.reference}</a>
+  <h1 style="margin-top:12px">Bid pack</h1>
+  <p class="lede" style="margin-bottom:32px">
+    {missing.length
+      ? `${missing.length} ${missing.length === 1 ? 'document isn’t' : 'documents aren’t'} ready. You can still download a draft to check the layout.`
+      : `${total} pages in checklist order, with an index page first.`}
+  </p>
+  <div class="cols">
+    <section style="flex:2 1 540px">
+      <div class="tablebox">
+        <table style="min-width:520px">
+          <thead><tr><th class="col-number">#</th><th><span class="visually-hidden">Ready</span></th><th>Document</th><th>Pages</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="col-number">1</td><td style="width:30px"><Tick ok={true} /></td><td>Index page</td><td class="num">{nIndex === 1 ? '1' : `1–${nIndex}`}</td><td><span class="sub">Ready</span></td></tr>
+            {rows.map((p, i) => (
+              <tr>
+                <td class="col-number">{i + 2}</td>
+                <td style="width:30px"><Tick ok={p.ready} /></td>
+                <td style={p.ready ? '' : 'font-weight:600'}>{p.doc.name}{p.sign && <div class="sub">Sign the last page</div>}</td>
+                <td class="num">{p.range}</td>
+                <td>{p.ready ? <span class="sub">{p.status}</span> : <span class="mark">{p.status}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="note" style="margin:16px 0 0">Forms are filled from your profile on a sheet of their own. To include the tender’s own form pages after it, open the form and point at its pages in the tender document.</p>
+    </section>
+    <section style="flex:1 1 280px">
+      <h2>How to submit</h2>
+      <div class="facts" style="flex-direction:column;gap:12px;margin:0 0 24px">
+        <div><div class="sub">Method</div><div>{t.submitMethod ?? <Dash />}</div></div>
+        <div><div class="sub">Where</div><div>{t.submitWhere ?? <Dash />}</div></div>
+        <div><div class="sub">Copies</div><div>{t.submitCopies ?? <Dash />}</div></div>
+        <div><div class="sub">Deadline</div><div><Closes desk={desk} t={t} /></div></div>
+      </div>
+      {!t.submitMethod && <p style="margin:0 0 20px"><a href={`${base}/details`}>Enter how to submit from the tender document</a></p>}
+      <ul class="list">
+        {sign.length > 0 && <li><span class="grow">Sign {sign.length} {sign.length === 1 ? 'form' : 'forms'}: {sign.join(', ')}</span></li>}
+        <li><span class="grow">Initial every page of the pricing schedule</span></li>
+        {box && <li><span class="grow">Seal it in an envelope with the label on the front</span></li>}
+      </ul>
+      <div class="actions">
+        <a class="btn primary" href={`${base}/pack.pdf`} target="_blank" data-astro-reload>{missing.length ? 'Download Draft PDF' : 'Download Bid Pack PDF'}</a>
+        {box && <a class="btn" href={`${base}/label.pdf`} target="_blank" data-astro-reload>Print Envelope Label</a>}
+      </div>
+      {!missing.length && <p style="margin:20px 0 0">Handed it in? <a href={`${base}/submit`}>Mark as Submitted</a></p>}
+    </section>
+  </div>
+</Layout>

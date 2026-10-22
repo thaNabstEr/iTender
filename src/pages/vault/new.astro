@@ -1,0 +1,15 @@
+---
+// Add a document to the vault, e.g. one a checklist asks for that isn't there yet.
+import { actions } from 'astro:actions';
+import Layout from '../../layouts/Layout.astro';
+import VaultForm from '../../components/VaultForm.astro';
+
+if (Astro.getActionResult(actions.saveVaultDoc)?.data) return Astro.redirect('/vault');
+const name = Astro.url.searchParams.get('name') ?? undefined;
+---
+<Layout title="Add a document">
+  <a href="/vault" class="back">Vault</a>
+  <h1 style="margin-top:12px">Add a document</h1>
+  <p class="lede" style="margin-bottom:32px">Documents you reuse across bids: registrations, certificates, CVs, reference letters.</p>
+  <VaultForm name={name} />
+</Layout>

@@ -1,19 +1,121 @@
 ---
 // Tenders: what's open in my work types?
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { actions } from 'astro:actions';
+import { eq } from 'drizzle-orm';
 import Layout from '../../layouts/Layout.astro';
 import TenderTable from '../../components/TenderTable.astro';
 import EmptyState from '../../components/EmptyState.astro';
+import Icon from '../../components/Icon.astro';
+import { RefreshIcon } from '@hugeicons/core-free-icons';
+import { DATA_DIR, db, schema } from '../../lib/db.ts';
+import { PROVINCES } from '../../lib/desk.ts';
 import { fmtWhen } from '../../lib/dates.ts';
 
+const fetchAsked = Astro.getActionResult(actions.requestFetch);
+if (fetchAsked?.data) return Astro.redirect('/tenders?fetching=1');
+if (Astro.getActionResult(actions.startBid)?.data) return Astro.redirect(`/tenders/${encodeURIComponent(Astro.getActionResult(actions.startBid)!.data!.ocid)}`);
+
+// Filters come from the URL; changing one saves them, and a bare /tenders uses the saved set.
+const KEYS = ['province', 'work', 'type', 'closing'] as const;
+type Filters = Record<(typeof KEYS)[number], string>;
 const desk = await Astro.locals.desk();
+const q = Astro.url.searchParams;
+let f: Filters;
+if (q.has('f')) {
+  f = Object.fromEntries(KEYS.map((k) => [k, q.get(k) ?? ''])) as Filters;
+  const json = JSON.stringify(f);
+  await db.insert(schema.settings).values({ id: 1, savedFiltersJson: json }).onConflictDoUpdate({ target: schema.settings.id, set: { savedFiltersJson: json } });
+} else {
+  const saved = desk.settings?.savedFiltersJson ? JSON.parse(desk.settings.savedFiltersJson) : {};
+  f = Object.fromEntries(KEYS.map((k) => [k, saved[k] ?? ''])) as Filters;
+}
+
 const open = desk.openTenders();
+const shown = open.filter((t) =>
+  (!f.province || t.province === f.province) &&
+  (!f.work || t.workType === f.work) &&
+  (!f.type || t.tenderType === f.type) &&
+  (!f.closing || (desk.days(t) ?? Infinity) <= Number(f.closing)));
+const filtered = shown.length !== open.length;
+
 const run = desk.lastFetch;
-const fetched = !run ? 'Not fetched yet.' : run.finishedAt ? `Fetched ${fmtWhen(desk.now, run.finishedAt)}.` : `A fetch started ${fmtWhen(desk.now, run.startedAt)} and hasn’t finished.`;
+const failed = run?.errorsJson ? JSON.parse(run.errorsJson) : null;
+const fetching = existsSync(join(DATA_DIR, 'fetch-requested')) || (run && !run.finishedAt);
+const fetched = fetching ? 'Fetching now; new tenders show up in a minute or two.'
+  : !run ? 'Not fetched yet.'
+  : failed?.fatal ? `The last fetch, ${fmtWhen(desk.now, run.startedAt)}, didn’t finish: ${failed.errors[0]}`
+  : `Fetched ${fmtWhen(desk.now, run.finishedAt!)}.`;
+// Provinces that appear, plus any filtered on, so the list stays short.
+const provinces = ['National', ...PROVINCES].filter((p) => p === f.province || open.some((t) => t.province === p));
 ---
-<Layout title="Tenders">
-  <h1>{open.length} open {open.length === 1 ? 'tender' : 'tenders'}</h1>
-  <p class="lede" style="margin-bottom:28px">Websites, systems and design work from eTenders. {fetched}</p>
-  {open.length
-    ? <TenderTable desk={desk} tenders={open} />
-    : <EmptyState>No open tenders yet. They show up here after the next fetch.</EmptyState>}
+<Layout title="Tenders" toast={q.has('fetching') ? 'Fetch started' : undefined}>
+  <div class="title-row">
+    <h1>{shown.length} open {shown.length === 1 ? 'tender' : 'tenders'}</h1>
+    <form method="POST" action={actions.requestFetch}>
+      <button type="submit" class="btn fetch" disabled={!!fetching}>
+        <Icon icon={RefreshIcon} size={18} />{fetching ? 'Fetching…' : 'Fetch Now'}
+      </button>
+    </form>
+  </div>
+  <p class="lede" style="margin-bottom:32px">
+    Websites, systems and design work from eTenders{filtered && <>, {open.length - shown.length} hidden by the filters (<a href="/tenders?f=1">clear them</a>)</>}. {fetched}
+  </p>
+  <form method="GET" class="filters" data-filters>
+    <input type="hidden" name="f" value="1" />
+    <label>Province
+      <select name="province" class:list={{ set: !!f.province }}>
+        <option value="">All provinces</option>
+        {provinces.map((p) => <option selected={p === f.province}>{p}</option>)}
+      </select>
+    </label>
+    <label>Work
+      <select name="work" class:list={{ set: !!f.work }}>
+        <option value="">All work</option>
+        <option value="website" selected={f.work === 'website'}>Websites</option>
+        <option value="system" selected={f.work === 'system'}>Systems</option>
+        <option value="design" selected={f.work === 'design'}>Design</option>
+      </select>
+    </label>
+    <label>Tender Type
+      <select name="type" class:list={{ set: !!f.type }}>
+        <option value="">All types</option>
+        <option value="quotation" selected={f.type === 'quotation'}>Quotations</option>
+        <option value="open_bid" selected={f.type === 'open_bid'}>Open bids</option>
+      </select>
+    </label>
+    <label>Closing
+      <select name="closing" class:list={{ set: !!f.closing }}>
+        <option value="">Any time</option>
+        <option value="7" selected={f.closing === '7'}>Within 7 days</option>
+        <option value="14" selected={f.closing === '14'}>Within 14 days</option>
+      </select>
+    </label>
+    <noscript><button type="submit">Apply</button></noscript>
+  </form>
+  {shown.length
+    ? <TenderTable desk={desk} tenders={shown} />
+    : filtered
+      ? <EmptyState>No tenders match these filters. Try a wider closing window or all provinces.</EmptyState>
+      : <EmptyState>No open tenders yet. They show up here after the next fetch.</EmptyState>}
 </Layout>
+
+<script>
+  // A filter applies as soon as it changes.
+  document.addEventListener('change', (e) => {
+    const form = (e.target as Element).closest<HTMLFormElement>('form[data-filters]');
+    form?.requestSubmit();
+  });
+</script>
+
+<style>
+  .fetch {
+    gap: 8px;
+  }
+
+  .fetch:disabled {
+    opacity: .6;
+    cursor: default;
+  }
+</style>

@@ -1,0 +1,41 @@
+---
+// Mark as submitted: record how and when it went in. It moves to Submitted in My bids.
+import { actions, isInputError } from 'astro:actions';
+import Layout from '../../../layouts/Layout.astro';
+import { sastDate } from '../../../lib/dates.ts';
+
+const ocid = Astro.params.ocid!;
+const base = `/tenders/${encodeURIComponent(ocid)}`;
+const result = Astro.getActionResult(actions.markSubmitted);
+if (result?.data) return Astro.redirect(base);
+const problem = result?.error ? (isInputError(result.error) ? Object.values(result.error.fields).flat().join(' ') : result.error.message) : null;
+
+const desk = await Astro.locals.desk();
+const t = desk.tenders.find((x) => x.ocid === ocid);
+if (!t?.bid) return Astro.redirect(base);
+const missing = desk.missingDocs(t);
+const price = desk.bidPrice(t);
+const vat = desk.vatRegistered();
+---
+<Layout title="Mark as submitted">
+  <a href={base} class="back">{t.title ?? t.reference}</a>
+  <h1 style="margin-top:12px">Mark as Submitted</h1>
+  <p class="lede" style="margin-bottom:32px">
+    Record how and when it went in. It moves to Submitted in My bids.
+    {missing.length > 0 && ` ${missing.length} ${missing.length === 1 ? 'document is' : 'documents are'} still marked as not ready.`}
+  </p>
+  {problem && <p class="banner" role="alert" style="display:block">That wasn’t saved. {problem}</p>}
+  <form method="POST" action={actions.markSubmitted}>
+    <input type="hidden" name="ocid" value={ocid} />
+    <div class="fields">
+      <label>Date Submitted<input type="date" name="submittedAt" value={sastDate(t.bid.submittedAt ?? desk.now)} required /></label>
+      <label>How
+        <select name="submitMethod" style="width:100%">
+          {['Tender box', 'Email', 'eTender upload', 'Courier'].map((m) => <option selected={m === (t.bid!.submitMethod ?? t.submitMethod)}>{m}</option>)}
+        </select>
+      </label>
+      <label>Final Price in Rands{vat ? ', incl. VAT' : ''}<input type="number" name="finalPrice" min="0" step="0.01" value={price ? price / 100 : ''} placeholder="0" /></label>
+    </div>
+    <div class="actions"><button type="submit" class="primary">Mark as Submitted</button><a class="btn" href={base}>Cancel</a></div>
+  </form>
+</Layout>

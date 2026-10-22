@@ -46,17 +46,23 @@ function hash(s: string): number {
   }
 
   .banner a {
-    color: var(--lime);
+    color: var(--ink);
     font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    border-radius: 4px;
+    padding: 0 2px;
   }
 
   .banner a:hover {
     color: #FFFFFF;
+    background: var(--forest);
+    text-decoration: none;
   }
 
   .banner .x {
     border: none;
-    color: #FFFFFF;
+    color: var(--forest);
     min-height: 44px;
     width: 44px;
     padding: 0;

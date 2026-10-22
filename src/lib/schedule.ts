@@ -6,6 +6,12 @@ export const TIMEZONE = 'Africa/Johannesburg';
 export const FETCH_DAYTIME_CRON = '0 7-19/2 * * 1-5';
 /** Once overnight, every day. */
 export const FETCH_OVERNIGHT_CRON = '0 2 * * *';
+/** The new-tender digest, weekdays at 07:00. */
+export const DIGEST_CRON = '0 7 * * 1-5';
+/** Briefing, vault expiry and result reminders, every day at 07:00. */
+export const REMINDERS_CRON = '0 7 * * *';
+/** The nightly backup, before the overnight fetch. */
+export const BACKUP_CRON = '30 1 * * *';
 
 const DAYTIME_HOURS = [7, 9, 11, 13, 15, 17, 19];
 const OVERNIGHT_HOUR = 2;

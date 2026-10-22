@@ -3,6 +3,8 @@ import { ClientRouter } from 'astro:transitions';
 import Splash from '../components/Splash.astro';
 import Banner from '../components/Banner.astro';
 import Toast from '../components/Toast.astro';
+import Icon from '../components/Icon.astro';
+import { Home01Icon, Search01Icon, Briefcase01Icon, FolderLockedIcon, Tag01Icon, Settings01Icon, SidebarLeftIcon } from '@hugeicons/core-free-icons';
 import '../styles/global.css';
 
 interface Props {
@@ -13,7 +15,6 @@ interface Props {
 const { title, toast } = Astro.props;
 const desk = await Astro.locals.desk();
 const counts = desk.counters();
-const profile = desk.profile;
 
 const path = Astro.url.pathname;
 const section = path === '/' ? 'home' : path.split('/')[1];
@@ -22,43 +23,55 @@ const tenderOcid = section === 'tenders' && path.split('/')[2] ? decodeURICompon
 const navOn = tenderOcid && desk.tenders.find((t) => t.ocid === tenderOcid)?.bid ? 'bids' : section;
 
 const nav = [
-  { key: 'home', href: '/', label: 'Home' },
-  { key: 'tenders', href: '/tenders', label: 'Tenders', count: counts.tenders, hint: 'new' },
-  { key: 'bids', href: '/bids', label: 'My bids', count: counts.bids, hint: 'active' },
-  { key: 'vault', href: '/vault', label: 'Vault', count: counts.vault, hint: 'need attention' },
-  { key: 'prices', href: '/prices', label: 'Prices' },
-  { key: 'settings', href: '/settings', label: 'Settings' },
+  { key: 'home', href: '/', label: 'Home', icon: Home01Icon },
+  { key: 'tenders', href: '/tenders', label: 'Tenders', icon: Search01Icon, count: counts.tenders, hint: 'new' },
+  { key: 'bids', href: '/bids', label: 'My bids', icon: Briefcase01Icon, count: counts.bids, hint: 'active' },
+  { key: 'vault', href: '/vault', label: 'Vault', icon: FolderLockedIcon, count: counts.vault, hint: 'need attention' },
+  { key: 'prices', href: '/prices', label: 'Prices', icon: Tag01Icon },
+  { key: 'settings', href: '/settings', label: 'Settings', icon: Settings01Icon },
 ];
-const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
 ---
 <!doctype html>
 <html lang="en-ZA">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>{title ? `${title} · Tender desk` : 'Tender desk'}</title>
+    <title>{title ? `${title} · iTender` : 'iTender'}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
     <ClientRouter fallback="none" />
+    <script is:inline>
+      // Set before paint, and again after each page swap, so a collapsed sidebar doesn't flash open
+      // and a splash that has already played doesn't flash in.
+      (() => {
+        const side = () => {
+          document.documentElement.dataset.side = localStorage.getItem('td-side') ?? 'open';
+          if (localStorage.getItem('td-splash-seen')) document.documentElement.dataset.splash = 'seen';
+        };
+        side();
+        document.addEventListener('astro:after-swap', side);
+      })();
+    </script>
   </head>
   <body>
     <Splash />
     <div class="app">
       <aside class="side">
-        <a class="brand" href="/">Tender desk</a>
+        <div class="top">
+          <a class="brand" href="/">iTender</a>
+          <button type="button" class="collapse" data-toggle-side aria-label="Collapse sidebar" title="Collapse sidebar">
+            <Icon icon={SidebarLeftIcon} />
+          </button>
+        </div>
         <nav aria-label="Main">
           {nav.map((n) => (
-            <a href={n.href} class:list={{ on: navOn === n.key }} aria-current={navOn === n.key ? 'page' : undefined}>
-              {n.label}
+            <a href={n.href} class:list={{ on: navOn === n.key }} aria-current={navOn === n.key ? 'page' : undefined} title={n.label}>
+              <span class="item"><Icon icon={n.icon} /><span class="label">{n.label}</span></span>
               {n.count ? <>{" "}<span class="count">{n.count}<span class="visually-hidden"> {n.hint}</span></span></> : null}
             </a>
           ))}
         </nav>
-        <a class="who" href="/settings">
-          <span class="avatar" aria-hidden="true">{initials}</span>
-          <span><span class="n">{profile?.name ?? 'Your company'}</span><br /><span class="sub">Company profile</span></span>
-        </a>
       </aside>
       <main data-toast={toast}>
         <Banner items={desk.bannerItems()} />
@@ -68,6 +81,23 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
     <Toast />
   </body>
 </html>
+
+<script>
+  const label = () => {
+    const btn = document.querySelector<HTMLButtonElement>('[data-toggle-side]');
+    const text = document.documentElement.dataset.side === 'collapsed' ? 'Expand sidebar' : 'Collapse sidebar';
+    btn?.setAttribute('aria-label', text);
+    btn?.setAttribute('title', text);
+  };
+  document.addEventListener('astro:page-load', label);
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('[data-toggle-side]')) return;
+    const next = document.documentElement.dataset.side === 'collapsed' ? 'open' : 'collapsed';
+    document.documentElement.dataset.side = next;
+    localStorage.setItem('td-side', next);
+    label();
+  });
+</script>
 
 <style>
   .app {
@@ -85,7 +115,72 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
     display: flex;
     flex-direction: column;
     gap: 28px;
-    background: var(--page);
+    background: var(--soft);
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .collapse {
+    border: none;
+    background: none;
+    color: var(--muted);
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .collapse:hover {
+    background: var(--line);
+    color: var(--ink);
+  }
+
+  /* Collapsed: an icon-only rail. Labels stay readable to screen readers. */
+  :global(html[data-side="collapsed"]) .app {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  :global(html[data-side="collapsed"]) .side {
+    padding-inline: 16px;
+  }
+
+  :global(html[data-side="collapsed"]) .top {
+    justify-content: center;
+  }
+
+  :global(html[data-side="collapsed"]) .brand {
+    display: none;
+  }
+
+  :global(html[data-side="collapsed"]) .side nav a {
+    position: relative;
+    justify-content: center;
+    padding: 0;
+  }
+
+  :global(html[data-side="collapsed"]) .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  :global(html[data-side="collapsed"]) .count {
+    position: absolute;
+    top: 2px;
+    right: -2px;
+    min-width: 18px;
+    padding: 0 5px;
+    font-size: 11px;
   }
 
   .brand {
@@ -118,8 +213,14 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
     white-space: nowrap;
   }
 
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
   .side nav a:hover {
-    background: var(--soft);
+    background: var(--line);
     color: var(--ink);
   }
 
@@ -140,44 +241,10 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
-
-  .who {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    padding: 12px 14px;
-    border-radius: 20px;
-    text-decoration: none;
-    color: var(--ink);
-  }
-
-  .who:hover {
-    background: var(--soft);
-    color: var(--ink);
-  }
-
-  .avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--lime);
-    color: var(--on-lime);
-    display: grid;
-    place-items: center;
-    font-weight: 900;
-    font-size: 14px;
-    flex-shrink: 0;
-  }
-
-  .who .n {
-    font-weight: 600;
-    font-size: 14px;
-    line-height: 1.3;
-  }
-
+/* right grid styling */
   main {
     padding: 32px 48px 96px;
-    max-width: 1120px;
+    max-width: 100%;
     width: 100%;
     min-width: 0;
   }
@@ -209,6 +276,37 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
       background: var(--page);
     }
 
+    .collapse {
+      display: none;
+    }
+
+    :global(html[data-side="collapsed"]) .app {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :global(html[data-side="collapsed"]) .side {
+      padding-inline: 16px;
+    }
+
+    :global(html[data-side="collapsed"]) .brand {
+      display: block;
+    }
+
+    :global(html[data-side="collapsed"]) .side nav a {
+      padding: 0 14px;
+    }
+
+    :global(html[data-side="collapsed"]) .label {
+      position: static;
+      width: auto;
+      height: auto;
+      clip-path: none;
+    }
+
+    :global(html[data-side="collapsed"]) .count {
+      position: static;
+    }
+
     .brand {
       padding: 0;
       font-size: 18px;
@@ -219,10 +317,6 @@ const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
       flex-direction: row;
       overflow-x: auto;
       gap: 2px;
-    }
-
-    .who {
-      display: none;
     }
 
     main {

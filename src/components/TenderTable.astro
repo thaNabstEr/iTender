@@ -1,7 +1,10 @@
 ---
+import { actions } from 'astro:actions';
 import type { Desk, DeskTender } from '../lib/desk.ts';
 import { TYPE_LABEL } from '../lib/desk.ts';
+import { PlayIcon } from '@hugeicons/core-free-icons';
 import Closes from './Closes.astro';
+import Icon from './Icon.astro';
 import Dash from './Dash.astro';
 
 interface Props { desk: Desk; tenders: DeskTender[] }
@@ -10,13 +13,14 @@ const STAGE = { preparing: 'Preparing', submitted: 'Submitted', awaiting: 'Await
 ---
 <div class="tablebox">
   <table>
-    <thead><tr><th>Tender</th><th>Province</th><th>Type</th><th class="num">Closes</th><th class="num"><span class="visually-hidden">Your bid</span></th></tr></thead>
+    <thead><tr><th class="col-number">#</th><th>Tender</th><th>Province</th><th>Type</th><th>Closes</th><th class="col-actions">Actions</th></tr></thead>
     <tbody>
-      {tenders.map((t) => {
+      {tenders.map((t, i) => {
         const stage = desk.stage(t);
         const href = `/tenders/${encodeURIComponent(t.ocid)}`;
         return (
           <tr>
+            <td class="col-number">{i + 1}</td>
             <td>
               <a class="tname" href={href}>{t.title ?? t.reference}</a>
               {!t.openedAt && !t.bid && <span class="tag">New</span>}
@@ -25,7 +29,15 @@ const STAGE = { preparing: 'Preparing', submitted: 'Submitted', awaiting: 'Await
             <td>{t.province ?? <Dash />}</td>
             <td>{t.tenderType ? TYPE_LABEL[t.tenderType] : <Dash />}</td>
             <td class="num"><Closes desk={desk} t={t} /></td>
-            <td class="num">{stage && <a href={href} class="sub" style="color:var(--ink)">{STAGE[stage]}</a>}</td>
+            <td class="col-actions">
+              {stage ? <a href={href} class="sub" style="color:var(--ink)">{STAGE[stage]}</a>
+                : desk.isOpen(t) && (
+                  <form method="POST" action={actions.startBid} style="margin:0">
+                    <input type="hidden" name="ocid" value={t.ocid} />
+                    <button type="submit" class="btn small with-icon"><Icon icon={PlayIcon} size={16} />Start Bid</button>
+                  </form>
+                )}
+            </td>
           </tr>
         );
       })}

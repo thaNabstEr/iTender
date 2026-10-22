@@ -10,6 +10,10 @@
     "dev:app": "astro dev",
     "dev:worker": "node --watch --env-file-if-exists=.env worker/index.ts",
     "worker": "node --env-file-if-exists=.env worker/index.ts",
+    "fetch:once": "node --env-file-if-exists=.env scripts/fetch-once.ts",
+    "backup": "node --env-file-if-exists=.env scripts/backup.ts",
+    "restore": "node --env-file-if-exists=.env scripts/restore.ts",
+    "autostart": "node scripts/autostart.ts",
     "build": "astro build",
     "start": "HOST=127.0.0.1 node --env-file-if-exists=.env dist/server/entry.mjs",
     "check": "astro check",
@@ -20,10 +24,12 @@
   "dependencies": {
     "@astrojs/node": "^11.1.9",
     "@astrojs/svelte": "^9.1.1",
+    "@hugeicons/core-free-icons": "^4.3.5",
     "@libsql/client": "^0.18.0",
     "astro": "^7.4.2",
     "drizzle-orm": "^0.45.4",
     "node-cron": "^4.6.0",
+    "pdf-lib": "^1.17.1",
     "svelte": "^5.57.2",
     "zod": "^4.6.7"
   },
