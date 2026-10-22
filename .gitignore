@@ -1,0 +1,31 @@
+## Claude context docs (kept locally, not in the repo)
+/tender-desk-kit
+.claude
+
+## Environment variables: API keys, SMTP password. Only the example is committed.
+.env
+.env.*
+!.env.example
+
+## App data: the database, vault (ID copies, tax PINs), tender documents, packs and backups. Never commit.
+/data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+
+## Dependencies and build output
+node_modules
+dist
+.astro
+
+## Logs
+*.log
+npm-debug.log*
+
+## OS and editor files
+.DS_Store
+Thumbs.db
+.vscode
+.idea

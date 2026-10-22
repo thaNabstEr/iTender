@@ -1,0 +1,75 @@
+---
+// Settings: are my details right?
+import { actions, isInputError } from 'astro:actions';
+import Layout from '../layouts/Layout.astro';
+import { PROVINCES } from '../lib/desk.ts';
+
+const result = Astro.getActionResult(actions.saveSettings);
+const desk = await Astro.locals.desk();
+const P = desk.profile;
+const A = desk.settings;
+
+const profileFields = [
+  ['name', 'Company name'], ['initials', 'Initials, for the avatar'], ['registrationNumber', 'Registration number'],
+  ['csdNumber', 'CSD supplier number'], ['taxPin', 'Tax compliance PIN'], ['address', 'Physical address'],
+  ['contactPerson', 'Contact person'], ['phone', 'Phone'], ['email', 'Email'],
+] as const;
+const LABELS: Record<string, string> = { blackOwnershipPct: 'Black ownership', womenOwnershipPct: 'Women ownership', alertEmail: 'Send alerts to', alertMode: 'Alert emails', vatRegistered: 'VAT-registered', youthOwned: 'Youth owned' };
+for (const [k, l] of profileFields) LABELS[k] = l;
+const problem = result?.error
+  ? isInputError(result.error) ? `Check ${Object.keys(result.error.fields).map((f) => LABELS[f] ?? f).join(', ')}.` : 'Something went wrong saving them. Try again.'
+  : null;
+const vat = P?.vatRegistered ?? false;
+const mode = A?.alertMode ?? 'instant';
+---
+<Layout title="Settings" toast={result?.data ? 'Settings saved' : undefined}>
+  <h1>Settings</h1>
+  <p class="lede" style="margin-bottom:36px">Your details fill every form. Change them here once, not on each tender.</p>
+  {problem && <p class="banner" role="alert" style="display:block">Those details weren’t saved. {problem}</p>}
+
+  <form method="POST" action={actions.saveSettings}>
+    <h2>Company profile</h2>
+    <p class="sub" style="margin:0 0 16px">Used on SBD and MBD forms.</p>
+    <div class="fields">
+      {profileFields.map(([k, label]) => <label>{label}<input type="text" name={k} value={P?.[k] ?? ''} /></label>)}
+    </div>
+
+    <h2>VAT</h2>
+    <p class="sub" style="margin:0 0 16px">Decides whether pricing schedules add 15%.</p>
+    <div style="margin:0 0 20px">
+      <div class="q"><p>Is the business VAT-registered?</p>
+        <div class="yn"><label><input type="radio" name="vatRegistered" value="yes" checked={vat} /> Yes</label><label><input type="radio" name="vatRegistered" value="no" checked={!vat} /> No</label></div>
+      </div>
+    </div>
+    <div class="fields"><label>VAT number<input type="text" name="vatNumber" value={P?.vatNumber ?? ''} /></label></div>
+
+    <h2>Ownership</h2>
+    <p class="sub" style="margin:0 0 16px">Used to claim preference points.</p>
+    <div class="fields">
+      <label>Black ownership, %<input type="number" min="0" max="100" name="blackOwnershipPct" value={P?.blackOwnershipPct ?? ''} /></label>
+      <label>Women ownership, %<input type="number" min="0" max="100" name="womenOwnershipPct" value={P?.womenOwnershipPct ?? ''} /></label>
+      <label>Province of the business
+        <select name="province" style="width:100%">
+          <option value="" selected={!P?.province}>Not set</option>
+          {PROVINCES.map((p) => <option selected={p === P?.province}>{p}</option>)}
+        </select>
+      </label>
+    </div>
+    <div style="margin:0 0 32px">
+      <div class="q"><p>Is the business 51% or more owned by youth?</p>
+        <div class="yn"><label><input type="radio" name="youthOwned" value="yes" checked={P?.youthOwned} /> Yes</label><label><input type="radio" name="youthOwned" value="no" checked={!P?.youthOwned} /> No</label></div>
+      </div>
+    </div>
+
+    <h2>Alerts</h2>
+    <p class="sub" style="margin:0 0 16px">By email. The banner in the app shows urgent items either way.</p>
+    <div class="fields"><label>Send alerts to<input type="email" name="alertEmail" value={A?.alertEmail ?? ''} /></label></div>
+    <div style="margin:0 0 32px">
+      <div class="q"><p>An email for each new tender, as soon as it’s found</p><div class="yn"><label><input type="radio" name="alertMode" value="instant" checked={mode === 'instant'} /> Choose</label></div></div>
+      <div class="q"><p>One email each weekday at 07:00 with everything new</p><div class="yn"><label><input type="radio" name="alertMode" value="digest" checked={mode === 'digest'} /> Choose</label></div></div>
+      <div class="q"><p>Email me when a tender I’m bidding on changes</p><div class="yn"><label><input type="checkbox" name="alertOnChanges" checked={A?.alertOnChanges ?? true} /> On</label></div></div>
+    </div>
+
+    <div class="actions"><button type="submit" class="primary">Save changes</button></div>
+  </form>
+</Layout>

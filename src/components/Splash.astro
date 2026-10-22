@@ -1,0 +1,52 @@
+---
+import SplashArt from './SplashArt.astro';
+---
+<div class="splash" id="splash" aria-hidden="true">
+  <SplashArt variant="splash" />
+  <p class="sp-word">Tender desk</p>
+</div>
+
+<script>
+  // Plays only on a full load. ClientRouter page changes drop the splash from the incoming page.
+  document.addEventListener('astro:before-swap', (e) => e.newDocument.getElementById('splash')?.remove());
+
+  const sp = document.getElementById('splash');
+  if (sp) {
+    const done = () => sp.remove();
+    const skip = () => sp.classList.add('skip');
+    sp.addEventListener('animationend', (e) => {
+      if (e.target === sp && e.animationName === 'sp-out') done();
+    });
+    sp.addEventListener('click', skip);
+    document.addEventListener('keydown', skip, { once: true });
+    setTimeout(done, 4000);
+  }
+</script>
+
+<style is:global>
+  .splash { position: fixed; inset: 0; z-index: 100; background: #9FE870; color: #163300; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; overflow: hidden; cursor: pointer; animation: sp-out .3s ease 2.5s forwards; }
+  .sp-art { width: min(62vmin, 440px); height: auto; fill: currentColor; overflow: visible; transform-origin: 43.3% 79%; animation: sp-zoom .7s cubic-bezier(.6, 0, .9, .4) 1.8s forwards; }
+  .sp-art g { transform-box: fill-box; transform-origin: 50% 100%; }
+  #sp-laptop { animation: sp-up .5s cubic-bezier(.2, .8, .2, 1) both; }
+  #sp-mid { animation: sp-pop .55s cubic-bezier(.34, 1.56, .64, 1) .3s both; }
+  #sp-left { animation: sp-pop .55s cubic-bezier(.34, 1.56, .64, 1) .45s both; }
+  #sp-right { animation: sp-pop .55s cubic-bezier(.34, 1.56, .64, 1) .6s both; }
+  #sp-hand { animation: sp-tap .18s ease-in-out 1.15s 3; }
+  #sp-mid-head { animation: sp-tilt .45s ease-in-out 1.2s both; }
+  .sp-art .sp-initials { font-family: 'Inter', system-ui, sans-serif; font-weight: 900; font-size: 30px; fill: #9FE870; animation: sp-fade .15s linear 1.8s forwards; }
+  .sp-word { margin: 0; font-size: clamp(28px, 5vw, 40px); font-weight: 900; letter-spacing: -0.025em; opacity: 0; animation: sp-in .4s ease 1.1s forwards, sp-fade .15s linear 1.8s forwards; }
+  .splash.skip { animation: sp-out .2s ease forwards; }
+  @keyframes sp-up { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes sp-pop { from { transform: translateY(40px) scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes sp-tap { 50% { transform: translateY(4px); } }
+  @keyframes sp-tilt { to { transform: rotate(-5deg); } }
+  @keyframes sp-in { to { opacity: 1; } }
+  @keyframes sp-fade { to { opacity: 0; } }
+  @keyframes sp-zoom { to { transform: scale(45); } }
+  @keyframes sp-out { to { opacity: 0; visibility: hidden; } }
+  @media (prefers-reduced-motion: reduce) {
+    .splash * { animation: none !important; }
+    .sp-word { opacity: 1; }
+    .splash { animation: sp-out .4s ease .6s forwards; }
+  }
+</style>

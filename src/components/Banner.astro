@@ -1,0 +1,38 @@
+---
+// The most urgent item, plus "and N more". Hiding it lasts for the browser session, and only
+// while the items stay the same: a session cookie holds the hidden set.
+import type { BannerItem } from '../lib/desk.ts';
+
+const BANNER_COOKIE = 'td-banner';
+
+interface Props { items: BannerItem[] }
+const { items } = Astro.props;
+
+const key = String(hash(items.map((i) => i.text).join('|')));
+const hidden = Astro.cookies.get(BANNER_COOKIE)?.value === key;
+const first = items[0];
+
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+---
+{first && !hidden && (
+  <div class="banner" role="status" data-banner-key={key}>
+    <p>
+      {first.text} <a href={first.href}>{first.label}</a>{items.length > 1 && <>, <a href="/bids">and {items.length - 1} more</a></>}
+    </p>
+    <button type="button" class="x" data-hide-banner aria-label="Hide until next time">×</button>
+  </div>
+)}
+
+<script>
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest('[data-hide-banner]');
+    const banner = btn?.closest<HTMLElement>('[data-banner-key]');
+    if (!banner) return;
+    document.cookie = `td-banner=${banner.dataset.bannerKey}; path=/; SameSite=Strict`;
+    banner.remove();
+  });
+</script>

@@ -1,0 +1,19 @@
+---
+// Tenders: what's open in my work types?
+import Layout from '../../layouts/Layout.astro';
+import TenderTable from '../../components/TenderTable.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import { fmtWhen } from '../../lib/dates.ts';
+
+const desk = await Astro.locals.desk();
+const open = desk.openTenders();
+const run = desk.lastFetch;
+const fetched = !run ? 'Not fetched yet.' : run.finishedAt ? `Fetched ${fmtWhen(desk.now, run.finishedAt)}.` : `A fetch started ${fmtWhen(desk.now, run.startedAt)} and hasn’t finished.`;
+---
+<Layout title="Tenders">
+  <h1>{open.length} open {open.length === 1 ? 'tender' : 'tenders'}</h1>
+  <p class="lede" style="margin-bottom:28px">Websites, systems and design work from eTenders. {fetched}</p>
+  {open.length
+    ? <TenderTable desk={desk} tenders={open} />
+    : <EmptyState>No open tenders yet. They show up here after the next fetch.</EmptyState>}
+</Layout>

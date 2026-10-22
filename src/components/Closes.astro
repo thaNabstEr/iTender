@@ -1,0 +1,11 @@
+---
+// A closing date, highlighted when it's within 2 days.
+import type { Desk, DeskTender } from '../lib/desk.ts';
+import { fmtCloses, fmtDay } from '../lib/dates.ts';
+import Dash from './Dash.astro';
+
+interface Props { desk: Desk; t: DeskTender }
+const { desk, t } = Astro.props;
+const text = t.closesAt ? (desk.isOpen(t) ? fmtCloses(desk.now, t.closesAt) : fmtDay(t.closesAt)) : null;
+---
+{text === null ? <Dash /> : desk.closesSoon(t) ? <span class="mark">{text}</span> : text}

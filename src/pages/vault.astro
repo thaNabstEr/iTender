@@ -1,0 +1,47 @@
+---
+// Vault: which documents will let me down?
+import Layout from '../layouts/Layout.astro';
+import EmptyState from '../components/EmptyState.astro';
+import { addDays, fmtDay } from '../lib/dates.ts';
+
+const desk = await Astro.locals.desk();
+const problems = desk.vaultProblems();
+const soon = addDays(desk.now, 30);
+---
+<Layout title="Vault">
+  <h1>Vault</h1>
+  <p class="lede" style="margin-bottom:32px">
+    {problems.length
+      ? `${problems.length} ${problems.length === 1 ? 'document needs' : 'documents need'} attention before your bids close.`
+      : 'Everything’s valid for your active bids.'}
+  </p>
+  {desk.vault.length ? (
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Document</th><th>Valid until</th><th>Used in</th></tr></thead>
+        <tbody>
+          {desk.vault.map((v) => {
+            const used = desk.vaultUsedIn(v).length;
+            const clash = desk.vaultClashes(v).length;
+            const expired = desk.expired(v);
+            return (
+              <tr>
+                <td><span style="font-weight:600">{v.name}</span>{v.notes && <div class="sub">{v.notes}</div>}</td>
+                <td>
+                  {!v.filePath ? <span class="mark">Not uploaded</span>
+                    : !v.expiresAt ? <span class="sub">No expiry</span>
+                    : v.expiresAt <= soon ? <span class="mark">{expired ? `Expired ${fmtDay(v.expiresAt)}` : fmtDay(v.expiresAt)}</span>
+                    : fmtDay(v.expiresAt)}
+                  {clash > 0 && <div class="sub">Before {clash} {clash === 1 ? 'tender closes' : 'tenders close'}</div>}
+                </td>
+                <td>{used} {used === 1 ? 'tender' : 'tenders'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <EmptyState>Nothing in the vault yet. Add your CSD report, tax PIN and B-BBEE affidavit first; most tenders ask for them.</EmptyState>
+  )}
+</Layout>

@@ -1,0 +1,12 @@
+---
+// The splash illustration from reference/splash.svg. The splash keeps the group ids it animates;
+// the empty-state copy drops them so ids stay unique on the page.
+import raw from '../assets/splash.svg?raw';
+
+interface Props { variant: 'splash' | 'empty' }
+const { variant } = Astro.props;
+
+const inner = raw.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+const body = variant === 'splash' ? inner : inner.replace(/ id="[^"]*"/g, '');
+---
+<svg class={variant === 'splash' ? 'sp-art' : 'empty-art'} viewBox="0 0 650 663" aria-hidden="true" focusable="false" set:html={body} />

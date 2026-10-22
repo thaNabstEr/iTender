@@ -1,0 +1,21 @@
+---
+// A small pill for confirmations. Never for errors that need action.
+---
+<div class="toast" id="toast" role="status" hidden transition:persist></div>
+
+<script>
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  window.toast = (message: string) => {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.hidden = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => (el.hidden = true), 2600);
+  };
+  // A page can ask for a toast after a form action with data-toast on <main>.
+  document.addEventListener('astro:page-load', () => {
+    const msg = document.querySelector<HTMLElement>('main[data-toast]')?.dataset.toast;
+    if (msg) window.toast(msg);
+  });
+</script>

@@ -1,0 +1,51 @@
+---
+// Home: is there anything new worth bidding on?
+import Layout from '../layouts/Layout.astro';
+import TenderTable from '../components/TenderTable.astro';
+import BidTable from '../components/BidTable.astro';
+import EmptyState from '../components/EmptyState.astro';
+import { TYPE_LABEL } from '../lib/desk.ts';
+import { fmtCloses, fmtDay, fmtWhen } from '../lib/dates.ts';
+import { nextFetchAt } from '../lib/schedule.ts';
+
+const desk = await Astro.locals.desk();
+const fresh = desk.newTenders();
+const [best, ...rest] = fresh;
+const bids = desk.activeBids().slice(0, 3);
+const where = best ? [best.entity, best.province].filter(Boolean).join(', ') : '';
+---
+<Layout>
+  <p class="huge">{fresh.length} new {fresh.length === 1 ? 'tender' : 'tenders'}</p>
+  <p class="lede" style="margin-bottom:32px">
+    {best
+      ? `In your work types since your last visit. ${desk.name(best)} closes first${best.closesAt ? `, on ${fmtDay(best.closesAt)}` : ''}.`
+      : `Nothing new since your last visit. The next fetch runs ${fmtWhen(desk.now, nextFetchAt(desk.now))}.`}
+  </p>
+
+  {best ? (
+    <div class="panel lime on-lime">
+      <h2 style="font-size:clamp(26px,3.5vw,36px);font-weight:900;letter-spacing:-0.03em;line-height:1.05;margin:0 0 8px">
+        <a href={`/tenders/${encodeURIComponent(best.ocid)}`} style="text-decoration:none">{best.title ?? best.reference}</a>
+      </h2>
+      <p style="margin:0 0 20px">
+        {where && `${where}. `}{best.tenderType && `${TYPE_LABEL[best.tenderType]}, `}closes {best.closesAt ? fmtCloses(desk.now, best.closesAt) : 'on a date not given'}.
+        {best.funcThreshold !== null && ` Needs ${best.funcThreshold} of 100 functionality points.`}
+      </p>
+      <div class="actions"><a class="btn" href={`/tenders/${encodeURIComponent(best.ocid)}`}>Read the details</a></div>
+    </div>
+  ) : (
+    <EmptyState>You’re up to date. New tenders appear here as soon as they’re found.</EmptyState>
+  )}
+
+  {rest.length > 0 && (
+    <div class="section">
+      <TenderTable desk={desk} tenders={rest} />
+      <p style="margin:14px 0 0"><a href="/tenders">All open tenders</a></p>
+    </div>
+  )}
+
+  <div class="section">
+    <div class="section-head"><h2>My bids</h2><a href="/bids">All bids</a></div>
+    {bids.length ? <BidTable desk={desk} bids={bids} /> : <p class="sub">No active bids. Start one from any tender.</p>}
+  </div>
+</Layout>

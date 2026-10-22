@@ -1,0 +1,66 @@
+---
+// My bids: where does each bid stand?
+import Layout from '../layouts/Layout.astro';
+import BidTable from '../components/BidTable.astro';
+import EmptyState from '../components/EmptyState.astro';
+import Dash from '../components/Dash.astro';
+import { rand } from '../lib/money.ts';
+
+const desk = await Astro.locals.desk();
+const active = desk.activeBids();
+const total = active.reduce((a, t) => a + (desk.bidPrice(t) ?? 0), 0);
+const unpriced = active.filter((t) => !desk.bidPrice(t)).length;
+const closed = desk.closedBids();
+const won = closed.filter((t) => desk.stage(t) === 'won').length;
+
+const sections = [
+  { title: 'Preparing', bids: desk.bidsAt('preparing'), empty: 'Nothing in preparation. Start a bid from any tender.' },
+  { title: 'Submitted', bids: desk.bidsAt('submitted'), empty: 'Nothing waiting to close.' },
+  { title: 'Awaiting result', bids: desk.bidsAt('awaiting'), empty: 'No bids waiting for a result.' },
+];
+---
+<Layout title="My bids">
+  <div class="panel forest">
+    <div style="margin-bottom:6px;opacity:.8">In {active.length} active {active.length === 1 ? 'bid' : 'bids'}</div>
+    <p class="huge" style="margin:0">{rand(total)}</p>
+    {unpriced > 0 && <p style="margin:10px 0 0;opacity:.8">{unpriced} {unpriced === 1 ? 'bid isn’t' : 'bids aren’t'} priced yet.</p>}
+  </div>
+
+  {sections.map((s) => (
+    <div class="section">
+      <h2>{s.title} <span class="sub" style="font-weight:500">{s.bids.length}</span></h2>
+      {s.bids.length ? <BidTable desk={desk} bids={s.bids} /> : <p class="sub">{s.empty}</p>}
+    </div>
+  ))}
+
+  <div class="section">
+    <h2>Closed <span class="sub" style="font-weight:500">{closed.length}</span></h2>
+    {closed.length ? (
+      <>
+        <p class="sub" style="margin:0 0 12px">Won {won} of {closed.length}.</p>
+        <div class="tablebox">
+          <table>
+            <thead><tr><th>Bid</th><th>Result</th><th class="num">Your price</th><th class="num">Winning price</th></tr></thead>
+            <tbody>
+              {closed.map((t) => {
+                const isWon = desk.stage(t) === 'won';
+                const mine = desk.bidPrice(t);
+                const winning = t.bid!.winningPriceCents ?? (isWon ? mine : null);
+                return (
+                  <tr>
+                    <td><span class="tname">{t.title ?? t.reference}</span><div class="sub">{t.entity ?? <Dash />}</div></td>
+                    <td>{isWon ? 'Won' : 'Lost'}{!isWon && t.bid!.winnerName && <div class="sub">to {t.bid!.winnerName}</div>}</td>
+                    <td class="num">{mine ? rand(mine) : <Dash />}</td>
+                    <td class="num">{winning ? rand(winning) : <span class="sub">Not known</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>
+    ) : (
+      <EmptyState>Results show up here once your bids close.</EmptyState>
+    )}
+  </div>
+</Layout>

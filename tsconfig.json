@@ -1,0 +1,10 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist", "data"],
+  "compilerOptions": {
+    // The worker and scripts run on Node's own type stripping, so only erasable syntax is allowed.
+    "erasableSyntaxOnly": true,
+    "types": ["node"]
+  }
+}

@@ -1,0 +1,74 @@
+---
+// Prices: what do these jobs go for?
+import Layout from '../layouts/Layout.astro';
+import EmptyState from '../components/EmptyState.astro';
+import Dash from '../components/Dash.astro';
+import PriceBand from '../components/islands/PriceBand.svelte';
+import { WORK_LABEL, WORK_PLURAL } from '../lib/desk.ts';
+import { rand } from '../lib/money.ts';
+import { MIN_WINS_FOR_RANGE, pricePoints, suggestedRange } from '../lib/prices.ts';
+
+const desk = await Astro.locals.desk();
+const registers = desk.registers;
+const bidCount = registers.reduce((a, r) => a + r.bids.length, 0);
+
+const groups = (['website', 'system', 'design'] as const)
+  .map((w) => {
+    const points = pricePoints(registers, w);
+    const wins = points.filter((p) => p.won).map((p) => p.priceCents);
+    return { w, points, wins, range: suggestedRange(points) };
+  })
+  .filter((g) => g.points.length > 0);
+
+const winLine = groups
+  .filter((g) => g.wins.length)
+  .map((g) => g.wins.length === 1
+    ? `One winning ${WORK_PLURAL[g.w]} bid so far, at ${rand(g.wins[0])}.`
+    : `Winning ${WORK_PLURAL[g.w]} jobs went for ${rand(Math.min(...g.wins))} to ${rand(Math.max(...g.wins))}.`)
+  .join(' ');
+---
+<Layout title="Prices">
+  <h1>Prices</h1>
+  <p class="lede" style="margin-bottom:32px">
+    {registers.length
+      ? `${bidCount} ${bidCount === 1 ? 'bid' : 'bids'} from ${registers.length} bid ${registers.length === 1 ? 'register' : 'registers'}. ${winLine}`
+      : 'No prices recorded yet.'}
+  </p>
+  {registers.length ? (
+    <div class="cols">
+      <section>
+        <div class="tablebox">
+          <table style="min-width:420px">
+            <thead><tr><th>Bid register</th><th class="num">Bids</th><th class="num">Winning bid</th></tr></thead>
+            <tbody>
+              {registers.map((r) => {
+                const win = r.bids.find((b) => b.won)?.priceCents;
+                return (
+                  <tr>
+                    <td><span style="font-weight:600">{r.job ?? <Dash />}</span><div class="sub">{[r.entity, r.year].filter(Boolean).join(', ')}</div></td>
+                    <td class="num">{r.bids.length}</td>
+                    <td class="num">{win ? rand(win) : <Dash />}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        {groups.map((g) => (
+          <div class="section">
+            <h2>{WORK_LABEL[g.w]} jobs</h2>
+            <p class="sub" style="margin:0 0 18px">
+              Every bid you’ve recorded, on one line.
+              {!g.range && ` There aren’t enough winning bids for a range yet: it needs ${MIN_WINS_FOR_RANGE}, you have ${g.wins.length}.`}
+            </p>
+            <PriceBand points={g.points} range={g.range} />
+          </div>
+        ))}
+      </section>
+    </div>
+  ) : (
+    <EmptyState>Record a result in My bids, or add a bid register from a past tender, and prices show here.</EmptyState>
+  )}
+</Layout>

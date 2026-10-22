@@ -1,0 +1,37 @@
+{
+  "name": "itender",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n app,worker -c green,blue \"npm:dev:app\" \"npm:dev:worker\"",
+    "dev:app": "astro dev",
+    "dev:worker": "node --watch --env-file-if-exists=.env worker/index.ts",
+    "worker": "node --env-file-if-exists=.env worker/index.ts",
+    "build": "astro build",
+    "start": "HOST=127.0.0.1 node --env-file-if-exists=.env dist/server/entry.mjs",
+    "check": "astro check",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.ts",
+    "db:seed": "node --env-file-if-exists=.env scripts/seed.ts"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.9",
+    "@astrojs/svelte": "^9.1.1",
+    "@libsql/client": "^0.18.0",
+    "astro": "^7.4.2",
+    "drizzle-orm": "^0.45.4",
+    "node-cron": "^4.6.0",
+    "svelte": "^5.57.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/node": "^26.6.5",
+    "concurrently": "^10.0.6",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^6.0.3"
+  }
+}

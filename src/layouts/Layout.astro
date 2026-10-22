@@ -1,0 +1,70 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import Splash from '../components/Splash.astro';
+import Banner from '../components/Banner.astro';
+import Toast from '../components/Toast.astro';
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  /** A confirmation to show once the page loads, e.g. after a form action. */
+  toast?: string;
+}
+const { title, toast } = Astro.props;
+const desk = await Astro.locals.desk();
+const counts = desk.counters();
+const profile = desk.profile;
+
+const path = Astro.url.pathname;
+const section = path === '/' ? 'home' : path.split('/')[1];
+// A tender belongs under My bids once there's a bid on it.
+const tenderOcid = section === 'tenders' && path.split('/')[2] ? decodeURIComponent(path.split('/')[2]) : null;
+const navOn = tenderOcid && desk.tenders.find((t) => t.ocid === tenderOcid)?.bid ? 'bids' : section;
+
+const nav = [
+  { key: 'home', href: '/', label: 'Home' },
+  { key: 'tenders', href: '/tenders', label: 'Tenders', count: counts.tenders, hint: 'new' },
+  { key: 'bids', href: '/bids', label: 'My bids', count: counts.bids, hint: 'active' },
+  { key: 'vault', href: '/vault', label: 'Vault', count: counts.vault, hint: 'need attention' },
+  { key: 'prices', href: '/prices', label: 'Prices' },
+  { key: 'settings', href: '/settings', label: 'Settings' },
+];
+const initials = (profile?.initials ?? '').slice(0, 2).toUpperCase();
+---
+<!doctype html>
+<html lang="en-ZA">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title ? `${title} · Tender desk` : 'Tender desk'}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+    <ClientRouter fallback="none" />
+  </head>
+  <body>
+    <Splash />
+    <div class="app">
+      <aside class="side">
+        <a class="brand" href="/">Tender desk</a>
+        <nav aria-label="Main">
+          {nav.map((n) => (
+            <a href={n.href} class:list={{ on: navOn === n.key }} aria-current={navOn === n.key ? 'page' : undefined}>
+              {n.label}
+              {n.count ? <>{" "}<span class="count">{n.count}<span class="visually-hidden"> {n.hint}</span></span></> : null}
+            </a>
+          ))}
+        </nav>
+        <a class="who" href="/settings">
+          <span class="avatar" aria-hidden="true">{initials}</span>
+          <span><span class="n">{profile?.name ?? 'Your company'}</span><br /><span class="sub">Company profile</span></span>
+        </a>
+      </aside>
+      <main data-toast={toast}>
+        <Banner items={desk.bannerItems()} />
+        <slot />
+      </main>
+    </div>
+    <Toast />
+  </body>
+</html>
