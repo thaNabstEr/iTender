@@ -2,3 +2,13 @@
 import SplashArt from './SplashArt.astro';
 ---
 <div class="empty"><SplashArt variant="empty" /><p class="lede"><slot /></p></div>
+
+<style>
+  .empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 24px 40px;
+    padding: 16px 0;
+  }
+</style>

@@ -49,3 +49,13 @@ const where = best ? [best.entity, best.province].filter(Boolean).join(', ') : '
     {bids.length ? <BidTable desk={desk} bids={bids} /> : <p class="sub">No active bids. Start one from any tender.</p>}
   </div>
 </Layout>
+
+<style>
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin: 0 0 12px;
+  }
+</style>

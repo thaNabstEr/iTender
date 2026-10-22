@@ -10,3 +10,21 @@ const inner = raw.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 const body = variant === 'splash' ? inner : inner.replace(/ id="[^"]*"/g, '');
 ---
 <svg class={variant === 'splash' ? 'sp-art' : 'empty-art'} viewBox="0 0 650 663" aria-hidden="true" focusable="false" set:html={body} />
+
+<style>
+  /* The splash variant is styled and animated in Splash.astro. */
+  .empty-art {
+    width: 200px;
+    height: auto;
+    fill: var(--forest);
+    flex-shrink: 0;
+  }
+
+  /* Inside set:html, so Astro can't scope it. */
+  .empty-art :global(.sp-initials) {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 30px;
+    fill: var(--lime);
+  }
+</style>

@@ -36,3 +36,36 @@ function hash(s: string): number {
     banner.remove();
   });
 </script>
+
+<style>
+  /* The base .banner look is in global.css, shared with the error message on Settings. */
+  .banner p {
+    margin: 0;
+    flex: 1 1 320px;
+    font-weight: 500;
+  }
+
+  .banner a {
+    color: var(--lime);
+    font-weight: 700;
+  }
+
+  .banner a:hover {
+    color: #FFFFFF;
+  }
+
+  .banner .x {
+    border: none;
+    color: #FFFFFF;
+    min-height: 44px;
+    width: 44px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .banner .x:hover {
+    background: rgba(255, 255, 255, .12);
+  }
+</style>
